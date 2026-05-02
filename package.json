@@ -17,6 +17,6 @@
     "genlayer-js": "^0.18.3"
   },
   "dependencies": {
-    "lightningcss-darwin-arm64": "^1.32.0"
+    "lightningcss": "^1.32.0"
   }
 }
