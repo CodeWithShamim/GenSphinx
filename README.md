@@ -40,6 +40,7 @@ deploy/             # Deployment scripts
 ### Installation
 
 1. Install root dependencies:
+
    ```bash
    pip install -r requirements.txt
    npm install
@@ -54,11 +55,13 @@ deploy/             # Deployment scripts
 ### Deployment
 
 1. Make sure you have the GenLayer CLI configured and select the network:
+
    ```bash
    genlayer network studionet
    ```
 
 2. Deploy the contract:
+
    ```bash
    npm run deploy
    ```
@@ -84,14 +87,3 @@ Visit `http://localhost:3000` to play!
 1. **Intelligent Contracts:** The core logic resides in `contracts/riddle_master.py`. It uses `gl.nondet.exec_prompt` to interact with LLMs during transaction execution.
 2. **Equivalence Principle:** To ensure consensus on non-deterministic AI outputs, the contract uses `gl.eq_principle.strict_eq`.
 3. **GenLayerJS:** The frontend communicates with the contract using `genlayer-js`, handling wallet connection and transaction signing.
-
-## Submission Details
-
-This project is prepared for the GenLayer Contribution Portal.
-- **Contribution Type:** Mini-game / DApp Example
-- **Repository:** [Your Repo URL]
-
----
-Built with 🧠 on GenLayer. 
-# GenSphinx
-
