@@ -92,7 +92,6 @@ This project is prepared for the GenLayer Contribution Portal.
 - **Repository:** [Your Repo URL]
 
 ---
-Built with 🧠 on GenLayer.
+Built with 🧠 on GenLayer. 
 # GenSphinx
-# GenSphinx
-# GenSphinx
+
