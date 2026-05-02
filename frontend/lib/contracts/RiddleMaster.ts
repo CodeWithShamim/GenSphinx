@@ -99,6 +99,15 @@ class RiddleMaster {
           .sort((a, b) => b.points - a.points);
       }
 
+      if (typeof leaderboard === "object" && leaderboard !== null) {
+        return Object.entries(leaderboard)
+          .map(([address, points]: any) => ({
+            address,
+            points: Number(points),
+          }))
+          .sort((a, b) => b.points - a.points);
+      }
+
       return [];
     } catch (error) {
       console.error("Error fetching leaderboard:", error);
