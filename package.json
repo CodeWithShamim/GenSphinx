@@ -15,9 +15,5 @@
   "devDependencies": {
     "genlayer": "^0.39.0",
     "genlayer-js": "^0.18.3"
-  },
-  "dependencies": {
-    "framer-motion": "^12.38.0",
-    "lightningcss": "^1.32.0"
   }
 }
