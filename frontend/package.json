@@ -9,6 +9,9 @@
     "start": "next start",
     "lint": "next lint"
   },
+  "engines": {
+    "node": ">=18.18.0"
+  },
   "keywords": [],
   "author": "",
   "license": "ISC",
