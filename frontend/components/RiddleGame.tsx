@@ -17,7 +17,7 @@ import { AddressDisplay } from "./AddressDisplay";
 import { cn } from "@/lib/utils";
 
 export function RiddleGame() {
-  const { address, isConnected } = useWallet();
+  const { address, isConnected, connectWallet, switchWalletAccount, isOnCorrectNetwork } = useWallet();
   const { data: riddle, isLoading: isLoadingRiddle, isError: isErrorRiddle } = useCurrentRiddle();
   const { data: score } = usePlayerScore(address);
   const { data: leaderboard } = useLeaderboard();
@@ -78,6 +78,36 @@ export function RiddleGame() {
             Step into the arena of the GenSphinx. Connect your wallet to receive your first challenge.
           </p>
         </div>
+        <Button onClick={connectWallet} variant="gradient" size="lg" className="rounded-2xl px-12 font-bold">
+          Connect Wallet
+        </Button>
+      </motion.div>
+    );
+  }
+
+  if (!isOnCorrectNetwork) {
+    return (
+      <motion.div 
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        className="brand-card p-12 text-center space-y-6 border-yellow-500/20 bg-yellow-500/5"
+      >
+        <div className="w-20 h-20 mx-auto bg-yellow-500/10 rounded-full flex items-center justify-center border border-yellow-500/20">
+          <HelpCircle className="w-10 h-10 text-yellow-500" />
+        </div>
+        <div className="space-y-2">
+          <h2 className="text-2xl font-bold">Wrong Network</h2>
+          <p className="text-muted-foreground max-w-md mx-auto">
+            The Sphinx only speaks on the GenLayer Studio network. Please switch your network to continue.
+          </p>
+        </div>
+        <Button 
+          onClick={switchWalletAccount} 
+          variant="outline" 
+          className="border-yellow-500/20 hover:bg-yellow-500/10 text-yellow-500 rounded-2xl px-8"
+        >
+          Switch to GenLayer
+        </Button>
       </motion.div>
     );
   }
