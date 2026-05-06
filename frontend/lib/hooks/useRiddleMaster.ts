@@ -9,7 +9,7 @@ import { success, error, configError } from "../utils/toast";
 import type { LeaderboardEntry } from "../contracts/types";
 
 export function useRiddleMasterContract(): RiddleMaster | null {
-  const { address } = useWallet();
+  const { address, provider } = useWallet();
   const contractAddress = getContractAddress();
   const studioUrl = getStudioUrl();
 
@@ -21,8 +21,9 @@ export function useRiddleMasterContract(): RiddleMaster | null {
       );
       return null;
     }
-    return new RiddleMaster(contractAddress, address, studioUrl);
-  }, [contractAddress, address, studioUrl]);
+    console.log(`[useRiddleMaster] Creating contract instance for address: ${address}, hasProvider: ${!!provider}`);
+    return new RiddleMaster(contractAddress, address, studioUrl, provider);
+  }, [contractAddress, address, studioUrl, provider]);
 
   return contract;
 }

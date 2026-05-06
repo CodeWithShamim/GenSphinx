@@ -1,7 +1,7 @@
 "use client";
 
 import React, { createContext, useContext, useMemo, ReactNode } from "react";
-import { useAccount, useDisconnect, useChainId, useSwitchChain } from "wagmi";
+import { useAccount, useDisconnect, useChainId, useSwitchChain, useConnectorClient } from "wagmi";
 import { useAppKit } from "@reown/appkit/react";
 import { studionet } from "./wagmi-config";
 
@@ -12,6 +12,7 @@ export interface WalletState {
   isLoading: boolean;
   isMetaMaskInstalled: boolean;
   isOnCorrectNetwork: boolean;
+  provider: any | null;
 }
 
 interface WalletContextValue extends WalletState {
@@ -31,6 +32,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   const chainId = useChainId();
   const { switchChain } = useSwitchChain();
   const { open } = useAppKit();
+  const { data: connectorClient } = useConnectorClient();
 
   const isOnCorrectNetwork = useMemo(() => chainId === studionet.id, [chainId]);
 
@@ -43,9 +45,17 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   };
 
   const switchWalletAccount = async () => {
-    // AppKit handles account switching via its own UI or the wallet itself
-    // For wagmi, we can just open the modal to allow user to manage account
-    await open({ view: 'Account' });
+    if (!isOnCorrectNetwork) {
+      try {
+        await switchChain({ chainId: studionet.id });
+      } catch (err) {
+        console.error("Failed to switch network:", err);
+        // Fallback to AppKit modal if wagmi switch fails
+        await open({ view: 'Networks' });
+      }
+    } else {
+      await open({ view: 'Account' });
+    }
   };
 
   const value: WalletContextValue = {
@@ -55,6 +65,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     isLoading: isConnecting || isReconnecting,
     isMetaMaskInstalled: true, // Wagmi handles this internally
     isOnCorrectNetwork,
+    provider: connectorClient?.transport || null,
     connectWallet,
     disconnectWallet,
     switchWalletAccount,

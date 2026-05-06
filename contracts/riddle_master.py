@@ -1,5 +1,8 @@
+# runner: python
+# { "Depends": "py-genlayer:test" }
 import json
 from genlayer import *
+import genlayer.gl.vm as glvm
 
 class RiddleMaster(gl.Contract):
     scores: TreeMap[Address, int]
@@ -7,12 +10,35 @@ class RiddleMaster(gl.Contract):
     player_answers: TreeMap[Address, str]
 
     def __init__(self):
-        # Explicitly initialize TreeMaps if necessary, 
-        # though GenVM usually handles this via type annotations
-        pass
+        self.scores = TreeMap()
+        self.player_riddles = TreeMap()
+        self.player_answers = TreeMap()
+
+    def _parse_llm_json(self, raw: any) -> dict:
+        """Robustly parse JSON from LLM output, handling dicts and strings with fences."""
+        if isinstance(raw, dict):
+            return raw
+        
+        s = str(raw).strip()
+        # Remove markdown code fences if present
+        if s.startswith("```"):
+            parts = s.split("```")
+            if len(parts) >= 2:
+                s = parts[1]
+                if s.startswith("json"):
+                    s = s[4:]
+        s = s.strip()
+        
+        # Find the first { and last }
+        start = s.find("{")
+        end = s.rfind("}") + 1
+        if start != -1 and end > start:
+            s = s[start:end]
+            
+        return json.loads(s)
 
     def _generate_new_riddle(self, sender: Address) -> None:
-        def get_new_riddle() -> str:
+        def leader_fn() -> str:
             prompt = """
             Generate a fun, clever, and challenging riddle suitable for a blockchain/crypto community. 
             The riddle should be engaging and not too obvious.
@@ -20,13 +46,22 @@ class RiddleMaster(gl.Contract):
             Do not include any other text or markdown formatting.
             """
             result = gl.nondet.exec_prompt(prompt, response_format="json")
-            return json.dumps(result, sort_keys=True)
+            # Return stable JSON string
+            return json.dumps(self._parse_llm_json(result), sort_keys=True)
 
-        # strict_eq ensures all validators agree on the exact same JSON string
-        result_json = json.loads(gl.eq_principle.strict_eq(get_new_riddle))
-        
-        if "riddle" not in result_json or "answer" not in result_json:
-            raise Exception("AI failed to generate a valid riddle format")
+        def validator_fn(leader_result: any) -> bool:
+            # leader_result is a glvm.Result (usually glvm.Return)
+            if not isinstance(leader_result, glvm.Return):
+                return False
+            try:
+                data = json.loads(leader_result.calldata)
+                return "riddle" in data and "answer" in data and len(data["riddle"]) > 10
+            except:
+                return False
+
+        # run_nondet_unsafe ensures consensus if validator returns True
+        result_json_str = glvm.run_nondet_unsafe(leader_fn, validator_fn)
+        result_json = json.loads(result_json_str)
             
         self.player_riddles[sender] = result_json["riddle"]
         self.player_answers[sender] = result_json["answer"]
@@ -46,7 +81,7 @@ class RiddleMaster(gl.Contract):
         riddle = self.player_riddles[sender]
         correct_answer = self.player_answers[sender]
 
-        def evaluate_answer() -> str:
+        def leader_eval() -> str:
             prompt = f"""
             Riddle: {riddle}
             Correct Answer Idea: {correct_answer}
@@ -57,11 +92,19 @@ class RiddleMaster(gl.Contract):
             Respond ONLY with 'CORRECT' or 'INCORRECT'.
             """
             result = gl.nondet.exec_prompt(prompt)
-            return result.strip().upper()
+            return "CORRECT" if "CORRECT" in result.upper() else "INCORRECT"
 
-        evaluation = gl.eq_principle.strict_eq(evaluate_answer)
+        def validator_eval(leader_result: any) -> bool:
+            if not isinstance(leader_result, glvm.Return):
+                return False
+            # Re-run evaluation and see if it falls in the same category
+            # (Adding some tolerance for AI variance)
+            my_eval = leader_eval()
+            return my_eval == leader_result.calldata
+
+        evaluation = glvm.run_nondet_unsafe(leader_eval, validator_eval)
         
-        if "CORRECT" in evaluation:
+        if evaluation == "CORRECT":
             # Increment score
             current_score = self.scores.get(sender, 0)
             self.scores[sender] = current_score + 1

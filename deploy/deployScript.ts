@@ -1,4 +1,4 @@
-import { readFileSync } from "fs";
+import { readFileSync, writeFileSync, existsSync } from "fs";
 import path from "path";
 import {
   TransactionHash,
@@ -43,6 +43,27 @@ export default async function main(client: GenLayerClient<any>) {
         : (receipt.txDataDecoded as DecodedDeployData)?.contractAddress;
 
     console.log(`Contract deployed at address: ${deployedContractAddress}`);
+
+    // Update frontend/.env
+    const envPath = path.resolve(process.cwd(), "frontend/.env");
+    if (existsSync(envPath)) {
+      let envContent = readFileSync(envPath, "utf8");
+      const regex = /^NEXT_PUBLIC_CONTRACT_ADDRESS=.*$/m;
+      if (regex.test(envContent)) {
+        envContent = envContent.replace(
+          regex,
+          `NEXT_PUBLIC_CONTRACT_ADDRESS=${deployedContractAddress}`
+        );
+      } else {
+        envContent += `\nNEXT_PUBLIC_CONTRACT_ADDRESS=${deployedContractAddress}\n`;
+      }
+      writeFileSync(envPath, envContent);
+      console.log(`Updated ${envPath} with new contract address.`);
+    } else {
+      console.log(
+        `Warning: ${envPath} not found. Please update it manually with address: ${deployedContractAddress}`
+      );
+    }
   } catch (error) {
     throw new Error(`Error during deployment:, ${error}`);
   }

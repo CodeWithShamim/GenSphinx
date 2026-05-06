@@ -12,7 +12,8 @@ class RiddleMaster {
   constructor(
     contractAddress: string,
     address?: string | null,
-    studioUrl?: string
+    studioUrl?: string,
+    provider?: any
   ) {
     this.contractAddress = contractAddress as `0x${string}`;
 
@@ -22,10 +23,19 @@ class RiddleMaster {
 
     if (address) {
       config.account = address as `0x${string}`;
+      console.log(`[RiddleMaster] Initialized with account: ${address}`);
+    } else {
+      console.log(`[RiddleMaster] Initialized without account (read-only)`);
+    }
+
+    if (provider) {
+      config.provider = provider;
+      console.log(`[RiddleMaster] Using custom provider from wagmi/connector`);
     }
 
     if (studioUrl) {
       config.endpoint = studioUrl;
+      console.log(`[RiddleMaster] Using studio URL: ${studioUrl}`);
     }
 
     this.client = createClient(config);
@@ -35,6 +45,7 @@ class RiddleMaster {
    * Update the address used for transactions
    */
   updateAccount(address: string): void {
+    console.log(`[RiddleMaster] Updating account to: ${address}`);
     const config: any = {
       chain: studionet,
       account: address as `0x${string}`,
@@ -120,12 +131,14 @@ class RiddleMaster {
    */
   async generateRiddle(): Promise<TransactionReceipt> {
     try {
+      console.log(`[RiddleMaster] Generating riddle...`);
       const txHash = await this.client.writeContract({
         address: this.contractAddress,
         functionName: "generate_riddle",
         args: [],
         value: BigInt(0),
       });
+      console.log(`[RiddleMaster] Transaction sent: ${txHash}`);
 
       const receipt = await this.client.waitForTransactionReceipt({
         hash: txHash,
@@ -134,24 +147,34 @@ class RiddleMaster {
         interval: 5000,
       });
 
+      console.log(`[RiddleMaster] Transaction receipt:`, receipt);
+
+      if (receipt.statusName === "REJECTED" || receipt.status === 4) {
+        throw new Error(`Transaction rejected by consensus. Hash: ${txHash}`);
+      }
+
       return receipt as TransactionReceipt;
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error generating riddle:", error);
-      throw new Error("Failed to generate riddle");
+      // Extract deeper error message if available
+      const message = error.message || "Failed to generate riddle";
+      const detailedError = error.data?.message || error.details || "";
+      throw new Error(`${message}${detailedError ? `: ${detailedError}` : ""}`);
     }
   }
-
   /**
    * Submit an answer
    */
   async submitAnswer(userAnswer: string): Promise<TransactionReceipt> {
     try {
+      console.log(`[RiddleMaster] Submitting answer: ${userAnswer}`);
       const txHash = await this.client.writeContract({
         address: this.contractAddress,
         functionName: "submit_answer",
         args: [userAnswer],
         value: BigInt(0),
       });
+      console.log(`[RiddleMaster] Transaction sent: ${txHash}`);
 
       const receipt = await this.client.waitForTransactionReceipt({
         hash: txHash,
@@ -160,12 +183,22 @@ class RiddleMaster {
         interval: 5000,
       });
 
+      console.log(`[RiddleMaster] Transaction receipt:`, receipt);
+
+      if (receipt.statusName === "REJECTED" || receipt.status === 4) {
+        throw new Error(`Transaction rejected by consensus. Hash: ${txHash}`);
+      }
+
       return receipt as TransactionReceipt;
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error submitting answer:", error);
-      throw new Error("Failed to submit answer");
+      // Extract deeper error message if available
+      const message = error.message || "Failed to submit answer";
+      const detailedError = error.data?.message || error.details || "";
+      throw new Error(`${message}${detailedError ? `: ${detailedError}` : ""}`);
     }
   }
+
 }
 
 export default RiddleMaster;

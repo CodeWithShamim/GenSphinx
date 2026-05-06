@@ -40,7 +40,9 @@ export function Logo({
   const StrongMark = () => (
     <svg
       className={`${markSize} ${colorClass} transition-colors`}
-      viewBox="0 0 97.76 91.93"
+      width="98"
+      height="92"
+      viewBox="0 0 98 92"
       xmlns="http://www.w3.org/2000/svg"
       aria-label="GenLayer Logo"
     >
