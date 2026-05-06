@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import { AccountPanel } from "./AccountPanel";
 import { Logo } from "./Logo";
 import { Brain } from "lucide-react";
@@ -55,7 +55,7 @@ export function Navbar() {
           {/* Center: Quote (Desktop only) */}
           <div className="hidden lg:flex items-center gap-2 text-[13px] font-medium text-white/40 italic bg-white/5 px-4 py-1.5 rounded-full border border-white/5">
             <Brain className="w-3.5 h-3.5 text-accent" />
-            <span>"The Sphinx is the guardian of the digital oracle"</span>
+            <span>&quot;The Sphinx is the guardian of the digital oracle&quot;</span>
           </div>
 
           {/* Right: Actions */}

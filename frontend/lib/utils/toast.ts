@@ -132,8 +132,7 @@ export const userRejected = (message: string) => {
 // Export the original toast for custom usage
 export { sonnerToast as toast };
 
-// Export all functions as a single object for convenience
-export default {
+const toastUtils = {
   success,
   error,
   warning,
@@ -144,3 +143,5 @@ export default {
   userRejected,
   toast: sonnerToast,
 };
+
+export default toastUtils;

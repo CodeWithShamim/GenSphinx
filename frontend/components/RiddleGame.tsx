@@ -12,7 +12,7 @@ import {
 import { useWallet } from "@/lib/genlayer/wallet";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Loader2, Brain, Send, Trophy, Sparkles, HelpCircle, ChevronRight, CheckCircle2, XCircle } from "lucide-react";
+import { Loader2, Brain, Send, Trophy, Sparkles, HelpCircle, CheckCircle2, XCircle } from "lucide-react";
 import { AddressDisplay } from "./AddressDisplay";
 import { cn } from "@/lib/utils";
 
@@ -40,7 +40,7 @@ export function RiddleGame() {
     if (!answer.trim()) return;
     
     submitAnswer(answer, {
-      onSuccess: (receipt) => {
+      onSuccess: () => {
         // In a real app, we'd check if the answer was actually correct from the receipt or event
         // For now, if the tx is accepted, we assume a correct answer path was taken or just show generic success
         setAnswer("");
@@ -213,7 +213,7 @@ export function RiddleGame() {
                   <HelpCircle className="w-6 h-6 text-accent" />
                 </div>
                 <p className="text-xl md:text-2xl text-center leading-relaxed font-medium italic text-white/90">
-                  "{riddle}"
+                  &quot;{riddle}&quot;
                 </p>
                 
                 {/* Visual accents for the riddle box */}

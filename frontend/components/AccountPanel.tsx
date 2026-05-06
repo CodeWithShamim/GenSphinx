@@ -1,6 +1,6 @@
 "use client";
 
-import { User, LogOut, Wallet, Trophy, ExternalLink, ShieldCheck } from "lucide-react";
+import { User, LogOut, Wallet, ExternalLink } from "lucide-react";
 import { useWallet } from "@/lib/genlayer/wallet";
 import { usePlayerScore } from "@/lib/hooks/useRiddleMaster";
 import { AddressDisplay } from "./AddressDisplay";

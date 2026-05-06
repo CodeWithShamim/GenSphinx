@@ -21,7 +21,9 @@ export function useRiddleMasterContract(): RiddleMaster | null {
       );
       return null;
     }
-    console.log(`[useRiddleMaster] Creating contract instance for address: ${address}, hasProvider: ${!!provider}`);
+    if (typeof window !== "undefined") {
+      console.log(`[useRiddleMaster] Creating contract instance for address: ${address}, hasProvider: ${!!provider}`);
+    }
     return new RiddleMaster(contractAddress, address, studioUrl, provider);
   }, [contractAddress, address, studioUrl, provider]);
 

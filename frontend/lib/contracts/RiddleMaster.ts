@@ -23,19 +23,27 @@ class RiddleMaster {
 
     if (address) {
       config.account = address as `0x${string}`;
-      console.log(`[RiddleMaster] Initialized with account: ${address}`);
+      if (typeof window !== "undefined") {
+        console.log(`[RiddleMaster] Initialized with account: ${address}`);
+      }
     } else {
-      console.log(`[RiddleMaster] Initialized without account (read-only)`);
+      if (typeof window !== "undefined") {
+        console.log(`[RiddleMaster] Initialized without account (read-only)`);
+      }
     }
 
     if (provider) {
       config.provider = provider;
-      console.log(`[RiddleMaster] Using custom provider from wagmi/connector`);
+      if (typeof window !== "undefined") {
+        console.log(`[RiddleMaster] Using custom provider from wagmi/connector`);
+      }
     }
 
     if (studioUrl) {
       config.endpoint = studioUrl;
-      console.log(`[RiddleMaster] Using studio URL: ${studioUrl}`);
+      if (typeof window !== "undefined") {
+        console.log(`[RiddleMaster] Using studio URL: ${studioUrl}`);
+      }
     }
 
     this.client = createClient(config);
@@ -149,12 +157,20 @@ class RiddleMaster {
 
       console.log(`[RiddleMaster] Transaction receipt:`, receipt);
 
-      if (receipt.statusName === "REJECTED" || receipt.status === 4) {
-        throw new Error(`Transaction rejected by consensus. Hash: ${txHash}`);
+      // Check for success statuses: ACCEPTED (5) or FINALIZED (7)
+      const isSuccessful = 
+        receipt.status === 5 || 
+        receipt.status === 7 || 
+        receipt.statusName === ("ACCEPTED" as any) || 
+        receipt.statusName === ("FINALIZED" as any);
+
+      if (!isSuccessful) {
+        throw new Error(`Transaction not accepted by consensus. Status: ${receipt.statusName} (${receipt.status}). Hash: ${txHash}`);
       }
 
       return receipt as TransactionReceipt;
-    } catch (error: any) {
+      } catch (error: any) {
+
       console.error("Error generating riddle:", error);
       // Extract deeper error message if available
       const message = error.message || "Failed to generate riddle";
@@ -185,12 +201,20 @@ class RiddleMaster {
 
       console.log(`[RiddleMaster] Transaction receipt:`, receipt);
 
-      if (receipt.statusName === "REJECTED" || receipt.status === 4) {
-        throw new Error(`Transaction rejected by consensus. Hash: ${txHash}`);
+      // Check for success statuses: ACCEPTED (5) or FINALIZED (7)
+      const isSuccessful = 
+        receipt.status === 5 || 
+        receipt.status === 7 || 
+        receipt.statusName === ("ACCEPTED" as any) || 
+        receipt.statusName === ("FINALIZED" as any);
+
+      if (!isSuccessful) {
+        throw new Error(`Transaction not accepted by consensus. Status: ${receipt.statusName} (${receipt.status}). Hash: ${txHash}`);
       }
 
       return receipt as TransactionReceipt;
-    } catch (error: any) {
+      } catch (error: any) {
+
       console.error("Error submitting answer:", error);
       // Extract deeper error message if available
       const message = error.message || "Failed to submit answer";
