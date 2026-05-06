@@ -1,13 +1,13 @@
-"use client";
+'use client';
 
-import { type ReactNode } from "react";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { Toaster } from "sonner";
-import { WagmiProvider } from "wagmi";
-import { createAppKit } from "@reown/appkit/react";
-import { WagmiAdapter } from "@reown/appkit-adapter-wagmi";
+import { type ReactNode } from 'react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { Toaster } from 'sonner';
+import { WagmiProvider } from 'wagmi';
+import { createAppKit } from '@reown/appkit/react';
+import { WagmiAdapter } from '@reown/appkit-adapter-wagmi';
 import { WalletProvider } from "@/lib/genlayer/WalletProvider";
-import { projectId, studionet, metadata } from "@/lib/genlayer/wagmi-config";
+import { projectId, bradbury, metadata } from "@/lib/genlayer/wagmi-config";
 
 // Setup queryClient
 const queryClient = new QueryClient();
@@ -16,32 +16,31 @@ const queryClient = new QueryClient();
 const wagmiAdapter = new WagmiAdapter({
   ssr: true,
   projectId,
-  networks: [studionet]
+  networks: [bradbury]
 });
 
 // Create modal
 createAppKit({
   adapters: [wagmiAdapter],
-  networks: [studionet],
+  networks: [bradbury],
   projectId,
   metadata,
+
   features: {
-    analytics: true
+    analytics: true,
   },
   themeMode: 'dark',
   themeVariables: {
     '--w3m-accent': 'oklch(0.65 0.22 300)',
-    '--w3m-border-radius-master': '12px'
-  }
+    '--w3m-border-radius-master': '12px',
+  },
 });
 
 export function Providers({ children }: { children: ReactNode }) {
   return (
     <WagmiProvider config={wagmiAdapter.wagmiConfig}>
       <QueryClientProvider client={queryClient}>
-        <WalletProvider>
-          {children}
-        </WalletProvider>
+        <WalletProvider>{children}</WalletProvider>
         <Toaster
           position="top-right"
           theme="dark"

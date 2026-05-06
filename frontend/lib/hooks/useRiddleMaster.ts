@@ -94,7 +94,38 @@ export function useGenerateRiddle() {
         throw new Error("Contract not configured or wallet not connected.");
       }
       setIsGenerating(true);
-      return contract.generateRiddle();
+
+      try {
+        // Pre-flight check: gas and balance
+        const [balance, gasEstimate, gasPrice] = await Promise.all([
+          contract.getAccountBalance(address),
+          contract.estimateGenerateRiddleGas(),
+          contract.getGasPrice(),
+        ]);
+
+        // If balance is 0, we definitely can't afford any transaction
+        if (balance === BigInt(0)) {
+          throw new Error("Insufficient funds. Your balance is 0 GEN. Please get some GEN from the faucet.");
+        }
+
+        const totalCost = gasEstimate * gasPrice;
+        
+        console.log(`[useGenerateRiddle] Balance: ${balance}, Estimate: ${gasEstimate}, GasPrice: ${gasPrice}, Total: ${totalCost}`);
+
+        // If balance is less than cost, or if we have exactly 0 and totalCost is 0
+        if (balance < totalCost) {
+          const balanceGen = Number(balance) / 1e18;
+          const costGen = Number(totalCost) / 1e18;
+          throw new Error(`Insufficient funds for gas. Balance: ${balanceGen.toFixed(4)} GEN, Estimated Cost: ${costGen.toFixed(4)} GEN`);
+        }
+
+        // Only call the wallet-triggering function if we pass the checks
+        return await contract.generateRiddle();
+      } catch (err: any) {
+        setIsGenerating(false);
+        // Re-throw to be caught by onError
+        throw err;
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["currentRiddle"] });
@@ -130,7 +161,33 @@ export function useSubmitAnswer() {
         throw new Error("Contract not configured or wallet not connected.");
       }
       setIsSubmitting(true);
-      return contract.submitAnswer(userAnswer);
+
+      try {
+        // Pre-flight check: gas and balance
+        const [balance, gasPrice] = await Promise.all([
+          contract.getAccountBalance(address),
+          contract.getGasPrice(),
+        ]);
+
+        if (balance === BigInt(0)) {
+          throw new Error("Insufficient funds. Your balance is 0 GEN.");
+        }
+
+        // Estimate gas for submit_answer
+        // We can use a generic estimate or a fixed safe value for this check
+        const gasEstimate = BigInt(500000); 
+        const totalCost = gasEstimate * gasPrice;
+
+        if (balance < totalCost) {
+          const balanceGen = Number(balance) / 1e18;
+          throw new Error(`Insufficient funds for gas. Balance: ${balanceGen.toFixed(4)} GEN`);
+        }
+
+        return await contract.submitAnswer(userAnswer);
+      } catch (err: any) {
+        setIsSubmitting(false);
+        throw err;
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["currentRiddle"] });

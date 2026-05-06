@@ -1,9 +1,9 @@
 import { defineChain } from 'viem'
 
-// Define GenLayer Studio (Studionet) chain
-export const studionet = defineChain({
-  id: 61999,
-  name: 'GenLayer Studio',
+// Define GenLayer Testnet Bradbury
+export const bradbury = defineChain({
+  id: 4221,
+  name: 'GenLayer Bradbury',
   nativeCurrency: {
     name: 'GenLayer',
     symbol: 'GEN',
@@ -11,13 +11,13 @@ export const studionet = defineChain({
   },
   rpcUrls: {
     default: {
-      http: ['https://studio.genlayer.com/api'],
+      http: ['https://rpc-bradbury.genlayer.com'],
     },
   },
   blockExplorers: {
     default: {
-      name: 'GenLayer Scan',
-      url: 'https://scan.genlayer.com',
+      name: 'GenLayer Bradbury Scan',
+      url: 'https://explorer-bradbury.genlayer.com',
     },
   },
   testnet: true,

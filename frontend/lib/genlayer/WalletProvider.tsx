@@ -1,9 +1,10 @@
 "use client";
 
-import React, { createContext, useContext, useMemo, ReactNode } from "react";
+import React, { createContext, useContext, useMemo, ReactNode, useEffect, useRef } from "react";
 import { useAccount, useDisconnect, useChainId, useSwitchChain, useConnectorClient } from "wagmi";
 import { useAppKit } from "@reown/appkit/react";
-import { studionet } from "./wagmi-config";
+
+const TARGET_CHAIN_ID = parseInt(process.env.NEXT_PUBLIC_GENLAYER_CHAIN_ID || "4221");
 
 export interface WalletState {
   address: string | null;
@@ -33,8 +34,23 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   const { switchChain } = useSwitchChain();
   const { open } = useAppKit();
   const { data: connectorClient } = useConnectorClient();
+  const switchAttempted = useRef(false);
 
-  const isOnCorrectNetwork = useMemo(() => chainId === studionet.id, [chainId]);
+  const isOnCorrectNetwork = useMemo(() => chainId === TARGET_CHAIN_ID, [chainId]);
+
+  // Automatic network switch
+  useEffect(() => {
+    if (isConnected && !isOnCorrectNetwork && !switchAttempted.current) {
+      console.log(`[WalletProvider] Auto-switching to chain ${TARGET_CHAIN_ID}`);
+      switchAttempted.current = true;
+      switchChain({ chainId: TARGET_CHAIN_ID });
+    }
+    
+    // Reset the ref if we are on the correct network or disconnected
+    if (isOnCorrectNetwork || !isConnected) {
+      switchAttempted.current = false;
+    }
+  }, [isConnected, isOnCorrectNetwork, switchChain]);
 
   const connectWallet = async () => {
     await open();
@@ -47,7 +63,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   const switchWalletAccount = async () => {
     if (!isOnCorrectNetwork) {
       try {
-        await switchChain({ chainId: studionet.id });
+        await switchChain({ chainId: TARGET_CHAIN_ID });
       } catch (err) {
         console.error("Failed to switch network:", err);
         // Fallback to AppKit modal if wagmi switch fails

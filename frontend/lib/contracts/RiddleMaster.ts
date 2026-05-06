@@ -135,6 +135,78 @@ class RiddleMaster {
   }
 
   /**
+   * Get the current balance of an account in Wei
+   */
+  async getAccountBalance(address: string): Promise<bigint> {
+    try {
+      // getBalance is a standard viem/genlayer-js public action
+      return await this.client.getBalance({
+        address: address as `0x${string}`,
+      });
+    } catch (error) {
+      console.error("Error fetching balance:", error);
+      try {
+        // Fallback to raw RPC request
+        const balanceHex = await (this.client as any).request({
+          method: "eth_getBalance",
+          params: [address, "latest"],
+        });
+        return BigInt(balanceHex);
+      } catch (innerError) {
+        console.error("Critical error fetching balance:", innerError);
+        return BigInt(0);
+      }
+    }
+  }
+
+  /**
+   * Estimate gas for generating a riddle
+   */
+  async estimateGenerateRiddleGas(): Promise<bigint> {
+    try {
+      // Try multiple possible method names for gas estimation
+      const anyClient = this.client as any;
+      if (typeof anyClient.estimateContractGas === "function") {
+        return await anyClient.estimateContractGas({
+          address: this.contractAddress,
+          functionName: "generate_riddle",
+          args: [],
+        });
+      } else if (typeof anyClient.estimateTransactionGas === "function") {
+        return await anyClient.estimateTransactionGas({
+          to: this.contractAddress,
+        });
+      }
+      
+      // GenLayer Studionet default for complex AI transactions
+      return BigInt(1000000); 
+    } catch (error) {
+      console.error("Error estimating gas, using default:", error);
+      return BigInt(1000000); 
+    }
+  }
+
+  /**
+   * Get the current gas price
+   */
+  async getGasPrice(): Promise<bigint> {
+    try {
+      if (typeof this.client.getGasPrice === "function") {
+        return await this.client.getGasPrice();
+      }
+      
+      const gasPriceHex = await (this.client as any).request({
+        method: "eth_gasPrice",
+      });
+      return BigInt(gasPriceHex);
+    } catch (error) {
+      console.error("Error fetching gas price, using default:", error);
+      // Default to 1 Gwei if everything fails
+      return BigInt(1000000000);
+    }
+  }
+
+  /**
    * Generate a new riddle
    */
   async generateRiddle(): Promise<TransactionReceipt> {
