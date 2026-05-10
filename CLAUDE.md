@@ -8,8 +8,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 npm run deploy          # Deploy contracts via GenLayer CLI
 npm run dev             # Start frontend dev server (cd frontend && npm run dev)
 npm run build           # Build frontend for production
-gltest                  # Run contract tests (requires GenLayer Studio running)
-genlayer network        # Select network (studionet/localnet/testnet)
+gltest                  # Run contract tests
+genlayer network        # Select network (bradbury/studionet/localnet)
 ```
 
 ## Architecture
@@ -25,11 +25,10 @@ test/               # Python integration tests (gltest)
 
 ## Development Workflow
 
-1. Ensure GenLayer Studio is running (local or https://studio.genlayer.com)
-2. Select network: `genlayer network`
-3. Deploy contract: `npm run deploy`
-4. Copy deployed address to `frontend/.env` as `NEXT_PUBLIC_CONTRACT_ADDRESS`
-5. Run frontend: `cd frontend && bun dev`
+1. Ensure you are on the correct network: `genlayer network` (Select Bradbury or Studionet)
+2. Deploy contract: `npm run deploy`
+3. Copy deployed address to `frontend/.env` as `NEXT_PUBLIC_CONTRACT_ADDRESS`
+4. Run frontend: `cd frontend && bun dev`
 
 ## Contract Development
 

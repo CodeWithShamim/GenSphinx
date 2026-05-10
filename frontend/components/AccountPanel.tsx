@@ -92,7 +92,7 @@ export function AccountPanel() {
                 <span className="text-[10px] font-black uppercase tracking-tighter text-white/20">Network Path</span>
                 <div className="flex items-center gap-2">
                     <div className={cn("w-2 h-2 rounded-full", isOnCorrectNetwork ? "bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.5)]" : "bg-yellow-500 animate-pulse")} />
-                    <span className="text-xs font-bold">{isOnCorrectNetwork ? "GENLAYER" : "UNKNOWN"}</span>
+                    <span className="text-xs font-bold">{isOnCorrectNetwork ? "BRADBURY" : "UNKNOWN"}</span>
                 </div>
             </div>
           </div>

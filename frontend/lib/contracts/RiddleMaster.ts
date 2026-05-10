@@ -1,6 +1,46 @@
 import { createClient } from "genlayer-js";
-import { studionet } from "genlayer-js/chains";
+import { bradbury } from "../genlayer/wagmi-config";
 import type { LeaderboardEntry, TransactionReceipt } from "./types";
+import { createPublicClient, http, type PublicClient as ViemPublicClient } from "viem";
+
+const RIDDLE_MASTER_ABI = [
+  {
+    name: "generate_riddle",
+    type: "function",
+    inputs: [],
+    outputs: [],
+  },
+  {
+    name: "submit_answer",
+    type: "function",
+    inputs: [{ name: "user_answer", type: "string" }],
+    outputs: [{ name: "", type: "bool" }],
+  },
+  {
+    name: "get_current_riddle",
+    type: "function",
+    inputs: [{ name: "player_address", type: "string" }],
+    outputs: [{ name: "", type: "string" }],
+  },
+  {
+    name: "get_score",
+    type: "function",
+    inputs: [{ name: "player_address", type: "string" }],
+    outputs: [{ name: "", type: "uint256" }],
+  },
+  {
+    name: "get_leaderboard",
+    type: "function",
+    inputs: [],
+    outputs: [{ name: "", type: "string" }],
+  },
+  {
+    name: "has_active_riddle",
+    type: "function",
+    inputs: [{ name: "player_address", type: "string" }],
+    outputs: [{ name: "", type: "bool" }],
+  },
+] as const;
 
 /**
  * RiddleMaster contract class for interacting with the GenLayer Riddle Master contract
@@ -8,45 +48,49 @@ import type { LeaderboardEntry, TransactionReceipt } from "./types";
 class RiddleMaster {
   private contractAddress: `0x${string}`;
   private client: ReturnType<typeof createClient>;
+  private publicClient: ReturnType<typeof createClient>;
+  private viemPublicClient: ViemPublicClient;
 
   constructor(
     contractAddress: string,
     address?: string | null,
-    studioUrl?: string,
+    rpcUrl?: string,
     provider?: any
   ) {
     this.contractAddress = contractAddress as `0x${string}`;
+    const endpoint = rpcUrl || "https://rpc-bradbury.genlayer.com";
 
     const config: any = {
-      chain: studionet,
+      chain: bradbury,
+      endpoint: endpoint,
     };
 
     if (address) {
       config.account = address as `0x${string}`;
-      if (typeof window !== "undefined") {
-        console.log(`[RiddleMaster] Initialized with account: ${address}`);
-      }
-    } else {
-      if (typeof window !== "undefined") {
-        console.log(`[RiddleMaster] Initialized without account (read-only)`);
-      }
     }
 
     if (provider) {
       config.provider = provider;
-      if (typeof window !== "undefined") {
-        console.log(`[RiddleMaster] Using custom provider from wagmi/connector`);
-      }
-    }
-
-    if (studioUrl) {
-      config.endpoint = studioUrl;
-      if (typeof window !== "undefined") {
-        console.log(`[RiddleMaster] Using studio URL: ${studioUrl}`);
-      }
     }
 
     this.client = createClient(config);
+
+    // Dedicated public client for GenLayer-specific calls (gen_call)
+    const publicConfig: any = {
+      chain: bradbury,
+      endpoint: endpoint,
+    };
+    this.publicClient = createClient(publicConfig);
+
+    // Standard Viem public client for reliable balance and gas price (ALWAYS hits RPC)
+    this.viemPublicClient = createPublicClient({
+      chain: bradbury,
+      transport: http(endpoint),
+    });
+
+    if (typeof window !== "undefined") {
+      console.log(`[RiddleMaster] Initialized. Account: ${address || 'None'}, RPC: ${endpoint}`);
+    }
   }
 
   /**
@@ -54,11 +98,16 @@ class RiddleMaster {
    */
   updateAccount(address: string): void {
     console.log(`[RiddleMaster] Updating account to: ${address}`);
+    
+    // Get the endpoint from the current client if possible
+    const currentEndpoint = (this.viemPublicClient as any).chain?.rpcUrls?.default?.http[0] || "https://rpc-bradbury.genlayer.com";
+    
     const config: any = {
-      chain: studionet,
+      chain: bradbury,
       account: address as `0x${string}`,
+      endpoint: currentEndpoint,
     };
-
+    
     this.client = createClient(config);
   }
 
@@ -68,8 +117,9 @@ class RiddleMaster {
   async getCurrentRiddle(address: string | null): Promise<string> {
     if (!address) return "Please connect your wallet.";
     try {
-      const riddle = await this.client.readContract({
+      const riddle = await this.publicClient.readContract({
         address: this.contractAddress,
+        abi: RIDDLE_MASTER_ABI,
         functionName: "get_current_riddle",
         args: [address],
       });
@@ -86,8 +136,9 @@ class RiddleMaster {
   async getPlayerScore(address: string | null): Promise<number> {
     if (!address) return 0;
     try {
-      const score = await this.client.readContract({
+      const score = await this.publicClient.readContract({
         address: this.contractAddress,
+        abi: RIDDLE_MASTER_ABI,
         functionName: "get_score",
         args: [address],
       });
@@ -103,8 +154,9 @@ class RiddleMaster {
    */
   async getLeaderboard(): Promise<LeaderboardEntry[]> {
     try {
-      const leaderboard: any = await this.client.readContract({
+      const leaderboard: any = await this.publicClient.readContract({
         address: this.contractAddress,
+        abi: RIDDLE_MASTER_ABI,
         functionName: "get_leaderboard",
         args: [],
       });
@@ -138,51 +190,19 @@ class RiddleMaster {
    * Get the current balance of an account in Wei
    */
   async getAccountBalance(address: string): Promise<bigint> {
+    const rpcUrl = (this.viemPublicClient as any).chain?.rpcUrls?.default?.http[0];
+    console.log(`[RiddleMaster] Fetching balance for ${address} on Bradbury RPC (Viem): ${rpcUrl}`);
     try {
-      // getBalance is a standard viem/genlayer-js public action
-      return await this.client.getBalance({
+      // Use viemPublicClient to ensure we hit Bradbury RPC, NOT MetaMask's current network
+      const balance = await this.viemPublicClient.getBalance({
         address: address as `0x${string}`,
       });
-    } catch (error) {
-      console.error("Error fetching balance:", error);
-      try {
-        // Fallback to raw RPC request
-        const balanceHex = await (this.client as any).request({
-          method: "eth_getBalance",
-          params: [address, "latest"],
-        });
-        return BigInt(balanceHex);
-      } catch (innerError) {
-        console.error("Critical error fetching balance:", innerError);
-        return BigInt(0);
-      }
-    }
-  }
-
-  /**
-   * Estimate gas for generating a riddle
-   */
-  async estimateGenerateRiddleGas(): Promise<bigint> {
-    try {
-      // Try multiple possible method names for gas estimation
-      const anyClient = this.client as any;
-      if (typeof anyClient.estimateContractGas === "function") {
-        return await anyClient.estimateContractGas({
-          address: this.contractAddress,
-          functionName: "generate_riddle",
-          args: [],
-        });
-      } else if (typeof anyClient.estimateTransactionGas === "function") {
-        return await anyClient.estimateTransactionGas({
-          to: this.contractAddress,
-        });
-      }
-      
-      // GenLayer Studionet default for complex AI transactions
-      return BigInt(1000000); 
-    } catch (error) {
-      console.error("Error estimating gas, using default:", error);
-      return BigInt(1000000); 
+      console.log(`[RiddleMaster] Balance retrieved: ${balance.toString()} Wei`);
+      return balance;
+    } catch (error: any) {
+      console.error("[RiddleMaster] Error fetching balance via Viem:", error);
+      const errorMessage = error?.message || "Unknown error";
+      throw new Error(`Unable to fetch balance from Bradbury network (${rpcUrl}): ${errorMessage}. Please check your connection.`);
     }
   }
 
@@ -191,18 +211,25 @@ class RiddleMaster {
    */
   async getGasPrice(): Promise<bigint> {
     try {
-      if (typeof this.client.getGasPrice === "function") {
-        return await this.client.getGasPrice();
-      }
-      
-      const gasPriceHex = await (this.client as any).request({
-        method: "eth_gasPrice",
-      });
-      return BigInt(gasPriceHex);
+      const gasPrice = await this.viemPublicClient.getGasPrice();
+      console.log(`[RiddleMaster] Gas price from Bradbury: ${gasPrice.toString()} Wei`);
+      return gasPrice;
     } catch (error) {
-      console.error("Error fetching gas price, using default:", error);
-      // Default to 1 Gwei if everything fails
+      console.error("[RiddleMaster] Error fetching gas price from Bradbury:", error);
       return BigInt(1000000000);
+    }
+  }
+
+  /**
+   * Estimate gas for generating a riddle
+   */
+  async estimateGenerateRiddleGas(): Promise<bigint> {
+    try {
+      // We use a safe default for Bradbury
+      return BigInt(1000000); 
+    } catch (error) {
+      console.error("[RiddleMaster] Error estimating gas on Bradbury:", error);
+      return BigInt(1000000); 
     }
   }
 
@@ -212,8 +239,16 @@ class RiddleMaster {
   async generateRiddle(): Promise<TransactionReceipt> {
     try {
       console.log(`[RiddleMaster] Generating riddle...`);
+      
+      // Ensure the client is initialized before sending transaction
+      // This fixes a race condition in genlayer-js where it fetches the consensus contract in the background
+      if (this.client.initializeConsensusSmartContract) {
+        await this.client.initializeConsensusSmartContract();
+      }
+
       const txHash = await this.client.writeContract({
         address: this.contractAddress,
+        abi: RIDDLE_MASTER_ABI,
         functionName: "generate_riddle",
         args: [],
         value: BigInt(0),
@@ -241,23 +276,29 @@ class RiddleMaster {
       }
 
       return receipt as TransactionReceipt;
-      } catch (error: any) {
-
+    } catch (error: any) {
       console.error("Error generating riddle:", error);
-      // Extract deeper error message if available
       const message = error.message || "Failed to generate riddle";
       const detailedError = error.data?.message || error.details || "";
       throw new Error(`${message}${detailedError ? `: ${detailedError}` : ""}`);
     }
   }
+
   /**
    * Submit an answer
    */
   async submitAnswer(userAnswer: string): Promise<TransactionReceipt> {
     try {
       console.log(`[RiddleMaster] Submitting answer: ${userAnswer}`);
+
+      // Ensure the client is initialized before sending transaction
+      if (this.client.initializeConsensusSmartContract) {
+        await this.client.initializeConsensusSmartContract();
+      }
+
       const txHash = await this.client.writeContract({
         address: this.contractAddress,
+        abi: RIDDLE_MASTER_ABI,
         functionName: "submit_answer",
         args: [userAnswer],
         value: BigInt(0),
@@ -285,16 +326,31 @@ class RiddleMaster {
       }
 
       return receipt as TransactionReceipt;
-      } catch (error: any) {
-
+    } catch (error: any) {
       console.error("Error submitting answer:", error);
-      // Extract deeper error message if available
       const message = error.message || "Failed to submit answer";
       const detailedError = error.data?.message || error.details || "";
       throw new Error(`${message}${detailedError ? `: ${detailedError}` : ""}`);
     }
   }
 
+  /**
+   * Check if a player has an active riddle
+   */
+  async hasActiveRiddle(address: string): Promise<boolean> {
+    try {
+      const result = await this.publicClient.readContract({
+        address: this.contractAddress,
+        abi: RIDDLE_MASTER_ABI,
+        functionName: "has_active_riddle",
+        args: [address],
+      });
+      return Boolean(result);
+    } catch (error) {
+      console.error("Error checking active riddle:", error);
+      return false;
+    }
+  }
 }
 
 export default RiddleMaster;

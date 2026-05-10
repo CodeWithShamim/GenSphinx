@@ -54,10 +54,10 @@ deploy/             # Deployment scripts
 
 ### Deployment
 
-1. Make sure you have the GenLayer CLI configured and select the network:
+1. Make sure you have the GenLayer CLI configured and select the network (e.g., Bradbury or Studionet):
 
    ```bash
-   genlayer network studionet
+   genlayer network
    ```
 
 2. Deploy the contract:

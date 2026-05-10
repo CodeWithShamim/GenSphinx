@@ -3,7 +3,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import RiddleMaster from "../contracts/RiddleMaster";
-import { getContractAddress, getStudioUrl } from "../genlayer/client";
+import { getContractAddress, getRpcUrl } from "../genlayer/client";
 import { useWallet } from "../genlayer/wallet";
 import { success, error, configError } from "../utils/toast";
 import type { LeaderboardEntry } from "../contracts/types";
@@ -11,21 +11,23 @@ import type { LeaderboardEntry } from "../contracts/types";
 export function useRiddleMasterContract(): RiddleMaster | null {
   const { address, provider } = useWallet();
   const contractAddress = getContractAddress();
-  const studioUrl = getStudioUrl();
+  const rpcUrl = getRpcUrl();
 
   const contract = useMemo(() => {
     if (!contractAddress) {
       configError(
         "Setup Required",
-        "Contract address not configured. Please set NEXT_PUBLIC_CONTRACT_ADDRESS in your .env file."
+        "Contract address not configured. Please set NEXT_PUBLIC_CONTRACT_ADDRESS in your .env file.",
       );
       return null;
     }
     if (typeof window !== "undefined") {
-      console.log(`[useRiddleMaster] Creating contract instance for address: ${address}, hasProvider: ${!!provider}`);
+      console.log(
+        `[useRiddleMaster] Creating contract instance for address: ${address}, hasProvider: ${!!provider}`,
+      );
     }
-    return new RiddleMaster(contractAddress, address, studioUrl, provider);
-  }, [contractAddress, address, studioUrl, provider]);
+    return new RiddleMaster(contractAddress, address, rpcUrl, provider);
+  }, [contractAddress, address, rpcUrl, provider]);
 
   return contract;
 }
@@ -97,28 +99,36 @@ export function useGenerateRiddle() {
 
       try {
         // Pre-flight check: gas and balance
-        const [balance, gasEstimate, gasPrice] = await Promise.all([
-          contract.getAccountBalance(address),
-          contract.estimateGenerateRiddleGas(),
-          contract.getGasPrice(),
-        ]);
-
-        // If balance is 0, we definitely can't afford any transaction
+        // We wrap this in a secondary try-catch to make it non-blocking
+        let balance = BigInt(-1); // -1 means unknown
+        let gasEstimate = BigInt(1000000);
+        let gasPrice = BigInt(1000000000);
+        try {
+          const [fetchedBalance, fetchedGasEstimate, fetchedGasPrice] = await Promise.all([
+            contract.getAccountBalance(address),
+            contract.estimateGenerateRiddleGas(),
+            contract.getGasPrice(),
+          ]);
+          balance = fetchedBalance;
+          gasEstimate = fetchedGasEstimate;
+          gasPrice = fetchedGasPrice;
+        } catch (checkErr) {
+          console.warn("[useGenerateRiddle] Pre-flight check failed, proceeding anyway:", checkErr);
+        }
+        // If we successfully fetched balance and it is 0, we definitely can't afford any transaction
         if (balance === BigInt(0)) {
-          throw new Error("Insufficient funds. Your balance is 0 GEN. Please get some GEN from the faucet.");
+          throw new Error("Insufficient funds. Your balance is 0 GEN on Bradbury. Please get some GEN from the faucet: https://faucet.genlayer.com");
         }
-
         const totalCost = gasEstimate * gasPrice;
-        
-        console.log(`[useGenerateRiddle] Balance: ${balance}, Estimate: ${gasEstimate}, GasPrice: ${gasPrice}, Total: ${totalCost}`);
-
-        // If balance is less than cost, or if we have exactly 0 and totalCost is 0
-        if (balance < totalCost) {
-          const balanceGen = Number(balance) / 1e18;
-          const costGen = Number(totalCost) / 1e18;
-          throw new Error(`Insufficient funds for gas. Balance: ${balanceGen.toFixed(4)} GEN, Estimated Cost: ${costGen.toFixed(4)} GEN`);
+        if (balance !== BigInt(-1)) {
+          console.log(`[useGenerateRiddle] Balance: ${balance}, Estimate: ${gasEstimate}, GasPrice: ${gasPrice}, Total: ${totalCost}`);
+          // If balance is less than cost, or if we have exactly 0 and totalCost is 0
+          if (balance < totalCost) {
+            const balanceGen = Number(balance) / 1e18;
+            const costGen = Number(totalCost) / 1e18;
+            throw new Error(`Insufficient funds for gas on Bradbury. Balance: ${balanceGen.toFixed(4)} GEN, Estimated Cost: ${costGen.toFixed(4)} GEN. Faucet: https://faucet.genlayer.com`);
+          }
         }
-
         // Only call the wallet-triggering function if we pass the checks
         return await contract.generateRiddle();
       } catch (err: any) {
@@ -136,7 +146,7 @@ export function useGenerateRiddle() {
       console.error("Error generating riddle:", err);
       setIsGenerating(false);
       error("Failed to generate riddle", {
-        description: err?.message || "Please try again."
+        description: err?.message || "Please try again.",
       });
     },
   });
@@ -164,23 +174,39 @@ export function useSubmitAnswer() {
 
       try {
         // Pre-flight check: gas and balance
-        const [balance, gasPrice] = await Promise.all([
-          contract.getAccountBalance(address),
-          contract.getGasPrice(),
-        ]);
+        let balance = BigInt(-1); // -1 means unknown
+        let gasPrice = BigInt(1000000000);
+
+        try {
+          const [fetchedBalance, fetchedGasPrice] = await Promise.all([
+            contract.getAccountBalance(address),
+            contract.getGasPrice(),
+          ]);
+          balance = fetchedBalance;
+          gasPrice = fetchedGasPrice;
+        } catch (checkErr) {
+          console.warn(
+            "[useSubmitAnswer] Pre-flight check failed, proceeding anyway:",
+            checkErr,
+          );
+        }
 
         if (balance === BigInt(0)) {
-          throw new Error("Insufficient funds. Your balance is 0 GEN.");
+          throw new Error(
+            "Insufficient funds. Your balance is 0 GEN on Bradbury. Faucet: https://faucet.genlayer.com",
+          );
         }
 
         // Estimate gas for submit_answer
         // We can use a generic estimate or a fixed safe value for this check
-        const gasEstimate = BigInt(500000); 
+        const gasEstimate = BigInt(500000);
         const totalCost = gasEstimate * gasPrice;
 
-        if (balance < totalCost) {
+        if (balance !== BigInt(-1) && balance < totalCost) {
           const balanceGen = Number(balance) / 1e18;
-          throw new Error(`Insufficient funds for gas. Balance: ${balanceGen.toFixed(4)} GEN`);
+          throw new Error(
+            `Insufficient funds for gas on Bradbury. Balance: ${balanceGen.toFixed(4)} GEN. Faucet: https://faucet.genlayer.com`,
+          );
         }
 
         return await contract.submitAnswer(userAnswer);
@@ -200,7 +226,7 @@ export function useSubmitAnswer() {
       console.error("Error submitting answer:", err);
       setIsSubmitting(false);
       error("Failed to submit answer", {
-        description: err?.message || "Please try again."
+        description: err?.message || "Please try again.",
       });
     },
   });

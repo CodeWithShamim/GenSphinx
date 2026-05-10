@@ -22,8 +22,8 @@ cp .env.example .env
 ```
 
 3. Configure environment variables:
-   - `NEXT_PUBLIC_CONTRACT_ADDRESS` - GenLayer Football Betting contract address
-   - `NEXT_PUBLIC_STUDIO_URL` - GenLayer Studio URL (default: https://studio.genlayer.com/api)
+   - `NEXT_PUBLIC_CONTRACT_ADDRESS` - GenLayer Riddle Master contract address
+   - `NEXT_PUBLIC_GENLAYER_RPC_URL` - GenLayer RPC URL (default: https://rpc-bradbury.genlayer.com)
 
 ## Development
 

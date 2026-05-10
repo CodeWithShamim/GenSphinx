@@ -1,5 +1,4 @@
-# runner: python
-# { "Depends": "py-genlayer:test" }
+# { "Depends": "py-genlayer:0.18.0" }
 import json
 from genlayer import *
 import genlayer.gl.vm as glvm

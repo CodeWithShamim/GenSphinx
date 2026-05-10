@@ -37,7 +37,7 @@ declare global {
 /**
  * Get the GenLayer RPC URL from environment variables
  */
-export function getStudioUrl(): string {
+export function getRpcUrl(): string {
   return (
     process.env.NEXT_PUBLIC_GENLAYER_RPC_URL || "https://rpc-bradbury.genlayer.com"
   );
