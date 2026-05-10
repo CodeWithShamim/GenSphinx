@@ -1,17 +1,15 @@
-# { "Depends": "py-genlayer:0.18.0" }
+# { "Depends": "py-genlayer:1jb45aa8ynh2a9c9xn3b7qqh8sm5q93hwfp7jqmwsfhh8jpz09h6" }
 import json
 from genlayer import *
 import genlayer.gl.vm as glvm
 
 class RiddleMaster(gl.Contract):
-    scores: TreeMap[Address, int]
+    scores: TreeMap[Address, u256]
     player_riddles: TreeMap[Address, str]
     player_answers: TreeMap[Address, str]
 
     def __init__(self):
-        self.scores = TreeMap()
-        self.player_riddles = TreeMap()
-        self.player_answers = TreeMap()
+        pass
 
     def _parse_llm_json(self, raw: any) -> dict:
         """Robustly parse JSON from LLM output, handling dicts and strings with fences."""
@@ -105,8 +103,8 @@ class RiddleMaster(gl.Contract):
         
         if evaluation == "CORRECT":
             # Increment score
-            current_score = self.scores.get(sender, 0)
-            self.scores[sender] = current_score + 1
+            current_score = int(self.scores.get(sender, u256(0)))
+            self.scores[sender] = u256(current_score + 1)
             
             # Auto-generate next riddle for seamless gameplay
             self._generate_new_riddle(sender)
@@ -122,12 +120,13 @@ class RiddleMaster(gl.Contract):
     @gl.public.view
     def get_score(self, player_address: str) -> int:
         """Returns the player's current score."""
-        return self.scores.get(Address(player_address), 0)
+        return int(self.scores.get(Address(player_address), u256(0)))
+
 
     @gl.public.view
-    def get_leaderboard(self) -> dict:
-        """Returns a mapping of player addresses to their scores."""
-        return {k.as_hex: v for k, v in self.scores.items()}
+    def get_leaderboard(self) -> str:
+        """Returns a mapping of player addresses to their scores as a JSON string."""
+        return json.dumps({k.as_hex: int(v) for k, v in self.scores.items()})
 
     @gl.public.view
     def has_active_riddle(self, player_address: str) -> bool:

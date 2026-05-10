@@ -3,45 +3,6 @@ import { bradbury } from "../genlayer/wagmi-config";
 import type { LeaderboardEntry, TransactionReceipt } from "./types";
 import { createPublicClient, http, type PublicClient as ViemPublicClient } from "viem";
 
-const RIDDLE_MASTER_ABI = [
-  {
-    name: "generate_riddle",
-    type: "function",
-    inputs: [],
-    outputs: [],
-  },
-  {
-    name: "submit_answer",
-    type: "function",
-    inputs: [{ name: "user_answer", type: "string" }],
-    outputs: [{ name: "", type: "bool" }],
-  },
-  {
-    name: "get_current_riddle",
-    type: "function",
-    inputs: [{ name: "player_address", type: "string" }],
-    outputs: [{ name: "", type: "string" }],
-  },
-  {
-    name: "get_score",
-    type: "function",
-    inputs: [{ name: "player_address", type: "string" }],
-    outputs: [{ name: "", type: "uint256" }],
-  },
-  {
-    name: "get_leaderboard",
-    type: "function",
-    inputs: [],
-    outputs: [{ name: "", type: "string" }],
-  },
-  {
-    name: "has_active_riddle",
-    type: "function",
-    inputs: [{ name: "player_address", type: "string" }],
-    outputs: [{ name: "", type: "bool" }],
-  },
-] as const;
-
 /**
  * RiddleMaster contract class for interacting with the GenLayer Riddle Master contract
  */
@@ -119,7 +80,6 @@ class RiddleMaster {
     try {
       const riddle = await this.publicClient.readContract({
         address: this.contractAddress,
-        abi: RIDDLE_MASTER_ABI,
         functionName: "get_current_riddle",
         args: [address],
       });
@@ -138,7 +98,6 @@ class RiddleMaster {
     try {
       const score = await this.publicClient.readContract({
         address: this.contractAddress,
-        abi: RIDDLE_MASTER_ABI,
         functionName: "get_score",
         args: [address],
       });
@@ -156,7 +115,6 @@ class RiddleMaster {
     try {
       const leaderboard: any = await this.publicClient.readContract({
         address: this.contractAddress,
-        abi: RIDDLE_MASTER_ABI,
         functionName: "get_leaderboard",
         args: [],
       });
@@ -248,7 +206,6 @@ class RiddleMaster {
 
       const txHash = await this.client.writeContract({
         address: this.contractAddress,
-        abi: RIDDLE_MASTER_ABI,
         functionName: "generate_riddle",
         args: [],
         value: BigInt(0),
@@ -278,9 +235,15 @@ class RiddleMaster {
       return receipt as TransactionReceipt;
     } catch (error: any) {
       console.error("Error generating riddle:", error);
-      const message = error.message || "Failed to generate riddle";
-      const detailedError = error.data?.message || error.details || "";
-      throw new Error(`${message}${detailedError ? `: ${detailedError}` : ""}`);
+      let errorMessage = error?.message || "Failed to generate riddle";
+      
+      // Handle various error formats from genlayer-js/viem
+      const details = error?.data?.message || error?.details || error?.reason;
+      if (details && typeof details === 'string') {
+        errorMessage += `: ${details}`;
+      }
+      
+      throw new Error(errorMessage);
     }
   }
 
@@ -298,7 +261,6 @@ class RiddleMaster {
 
       const txHash = await this.client.writeContract({
         address: this.contractAddress,
-        abi: RIDDLE_MASTER_ABI,
         functionName: "submit_answer",
         args: [userAnswer],
         value: BigInt(0),
@@ -328,9 +290,14 @@ class RiddleMaster {
       return receipt as TransactionReceipt;
     } catch (error: any) {
       console.error("Error submitting answer:", error);
-      const message = error.message || "Failed to submit answer";
-      const detailedError = error.data?.message || error.details || "";
-      throw new Error(`${message}${detailedError ? `: ${detailedError}` : ""}`);
+      let errorMessage = error?.message || "Failed to submit answer";
+      
+      const details = error?.data?.message || error?.details || error?.reason;
+      if (details && typeof details === 'string') {
+        errorMessage += `: ${details}`;
+      }
+      
+      throw new Error(errorMessage);
     }
   }
 
@@ -341,7 +308,6 @@ class RiddleMaster {
     try {
       const result = await this.publicClient.readContract({
         address: this.contractAddress,
-        abi: RIDDLE_MASTER_ABI,
         functionName: "has_active_riddle",
         args: [address],
       });
