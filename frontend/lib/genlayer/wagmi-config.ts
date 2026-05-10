@@ -1,7 +1,13 @@
-import { defineChain } from 'viem'
+import { testnetAsimov } from 'genlayer-js/chains'
 
-// Define GenLayer Testnet Bradbury
-export const bradbury = defineChain({
+/**
+ * GenLayer Testnet Bradbury
+ * 
+ * We use testnetAsimov as the base because it contains the necessary 
+ * consensus contract addresses and ABIs required by genlayer-js.
+ */
+export const bradbury = {
+  ...testnetAsimov,
   id: 4221,
   name: 'GenLayer Bradbury',
   nativeCurrency: {
@@ -20,8 +26,7 @@ export const bradbury = defineChain({
       url: 'https://explorer-bradbury.genlayer.com',
     },
   },
-  testnet: true,
-})
+} as const
 
 // Get projectId from https://cloud.reown.com
 export const projectId = process.env.NEXT_PUBLIC_REOWN_PROJECT_ID || '8e434f07a098046f4857b288c3866172'

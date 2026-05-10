@@ -1,7 +1,7 @@
 import { createClient } from "genlayer-js";
 import { bradbury } from "../genlayer/wagmi-config";
 import type { LeaderboardEntry, TransactionReceipt } from "./types";
-import { createPublicClient, http, type PublicClient as ViemPublicClient } from "viem";
+import { createPublicClient, http } from "viem";
 
 /**
  * RiddleMaster contract class for interacting with the GenLayer Riddle Master contract
@@ -10,7 +10,7 @@ class RiddleMaster {
   private contractAddress: `0x${string}`;
   private client: ReturnType<typeof createClient>;
   private publicClient: ReturnType<typeof createClient>;
-  private viemPublicClient: ViemPublicClient;
+  private viemPublicClient: any;
 
   constructor(
     contractAddress: string,
@@ -21,6 +21,8 @@ class RiddleMaster {
     this.contractAddress = contractAddress as `0x${string}`;
     const endpoint = rpcUrl || "https://rpc-bradbury.genlayer.com";
 
+    // Configuration for genlayer-js client
+    // Note: genlayer-js uses 'provider' for wallet integration (MetaMask)
     const config: any = {
       chain: bradbury,
       endpoint: endpoint,
@@ -43,24 +45,23 @@ class RiddleMaster {
     };
     this.publicClient = createClient(publicConfig);
 
-    // Standard Viem public client for reliable balance and gas price (ALWAYS hits RPC)
+    // Standard Viem public client for reliable balance and gas price
     this.viemPublicClient = createPublicClient({
-      chain: bradbury,
+      chain: bradbury as any,
       transport: http(endpoint),
     });
 
     if (typeof window !== "undefined") {
-      console.log(`[RiddleMaster] Initialized. Account: ${address || 'None'}, RPC: ${endpoint}`);
+      console.log(`[RiddleMaster] Initialized. Account: ${address || 'None'}, RPC: ${endpoint}, HasProvider: ${!!provider}`);
     }
   }
 
   /**
    * Update the address used for transactions
    */
-  updateAccount(address: string): void {
+  updateAccount(address: string, provider?: any): void {
     console.log(`[RiddleMaster] Updating account to: ${address}`);
     
-    // Get the endpoint from the current client if possible
     const currentEndpoint = (this.viemPublicClient as any).chain?.rpcUrls?.default?.http[0] || "https://rpc-bradbury.genlayer.com";
     
     const config: any = {
@@ -68,6 +69,10 @@ class RiddleMaster {
       account: address as `0x${string}`,
       endpoint: currentEndpoint,
     };
+
+    if (provider) {
+      config.provider = provider;
+    }
     
     this.client = createClient(config);
   }
@@ -113,31 +118,26 @@ class RiddleMaster {
    */
   async getLeaderboard(): Promise<LeaderboardEntry[]> {
     try {
-      const leaderboard: any = await this.publicClient.readContract({
+      const leaderboardJson: any = await this.publicClient.readContract({
         address: this.contractAddress,
         functionName: "get_leaderboard",
         args: [],
       });
 
-      if (leaderboard instanceof Map) {
-        return Array.from(leaderboard.entries())
-          .map(([address, points]: any) => ({
-            address,
-            points: Number(points),
-          }))
-          .sort((a, b) => b.points - a.points);
+      let data: Record<string, number> = {};
+      try {
+        data = typeof leaderboardJson === 'string' ? JSON.parse(leaderboardJson) : leaderboardJson;
+      } catch (e) {
+        console.error("Error parsing leaderboard JSON:", e);
+        return [];
       }
 
-      if (typeof leaderboard === "object" && leaderboard !== null) {
-        return Object.entries(leaderboard)
-          .map(([address, points]: any) => ({
-            address,
-            points: Number(points),
-          }))
-          .sort((a, b) => b.points - a.points);
-      }
-
-      return [];
+      return Object.entries(data)
+        .map(([address, points]) => ({
+          address,
+          points: Number(points),
+        }))
+        .sort((a, b) => b.points - a.points);
     } catch (error) {
       console.error("Error fetching leaderboard:", error);
       return [];
@@ -148,19 +148,14 @@ class RiddleMaster {
    * Get the current balance of an account in Wei
    */
   async getAccountBalance(address: string): Promise<bigint> {
-    const rpcUrl = (this.viemPublicClient as any).chain?.rpcUrls?.default?.http[0];
-    console.log(`[RiddleMaster] Fetching balance for ${address} on Bradbury RPC (Viem): ${rpcUrl}`);
     try {
-      // Use viemPublicClient to ensure we hit Bradbury RPC, NOT MetaMask's current network
       const balance = await this.viemPublicClient.getBalance({
         address: address as `0x${string}`,
       });
-      console.log(`[RiddleMaster] Balance retrieved: ${balance.toString()} Wei`);
       return balance;
-    } catch (error: any) {
-      console.error("[RiddleMaster] Error fetching balance via Viem:", error);
-      const errorMessage = error?.message || "Unknown error";
-      throw new Error(`Unable to fetch balance from Bradbury network (${rpcUrl}): ${errorMessage}. Please check your connection.`);
+    } catch (err: any) {
+      console.error("[RiddleMaster] Error fetching balance:", err);
+      return BigInt(0);
     }
   }
 
@@ -169,11 +164,8 @@ class RiddleMaster {
    */
   async getGasPrice(): Promise<bigint> {
     try {
-      const gasPrice = await this.viemPublicClient.getGasPrice();
-      console.log(`[RiddleMaster] Gas price from Bradbury: ${gasPrice.toString()} Wei`);
-      return gasPrice;
-    } catch (error) {
-      console.error("[RiddleMaster] Error fetching gas price from Bradbury:", error);
+      return await this.viemPublicClient.getGasPrice();
+    } catch (_) {
       return BigInt(1000000000);
     }
   }
@@ -182,13 +174,7 @@ class RiddleMaster {
    * Estimate gas for generating a riddle
    */
   async estimateGenerateRiddleGas(): Promise<bigint> {
-    try {
-      // We use a safe default for Bradbury
-      return BigInt(1000000); 
-    } catch (error) {
-      console.error("[RiddleMaster] Error estimating gas on Bradbury:", error);
-      return BigInt(1000000); 
-    }
+    return BigInt(1000000); 
   }
 
   /**
@@ -198,8 +184,6 @@ class RiddleMaster {
     try {
       console.log(`[RiddleMaster] Generating riddle...`);
       
-      // Ensure the client is initialized before sending transaction
-      // This fixes a race condition in genlayer-js where it fetches the consensus contract in the background
       if (this.client.initializeConsensusSmartContract) {
         await this.client.initializeConsensusSmartContract();
       }
@@ -219,31 +203,10 @@ class RiddleMaster {
         interval: 5000,
       });
 
-      console.log(`[RiddleMaster] Transaction receipt:`, receipt);
-
-      // Check for success statuses: ACCEPTED (5) or FINALIZED (7)
-      const isSuccessful = 
-        receipt.status === 5 || 
-        receipt.status === 7 || 
-        receipt.statusName === ("ACCEPTED" as any) || 
-        receipt.statusName === ("FINALIZED" as any);
-
-      if (!isSuccessful) {
-        throw new Error(`Transaction not accepted by consensus. Status: ${receipt.statusName} (${receipt.status}). Hash: ${txHash}`);
-      }
-
       return receipt as TransactionReceipt;
     } catch (error: any) {
       console.error("Error generating riddle:", error);
-      let errorMessage = error?.message || "Failed to generate riddle";
-      
-      // Handle various error formats from genlayer-js/viem
-      const details = error?.data?.message || error?.details || error?.reason;
-      if (details && typeof details === 'string') {
-        errorMessage += `: ${details}`;
-      }
-      
-      throw new Error(errorMessage);
+      throw error;
     }
   }
 
@@ -254,7 +217,6 @@ class RiddleMaster {
     try {
       console.log(`[RiddleMaster] Submitting answer: ${userAnswer}`);
 
-      // Ensure the client is initialized before sending transaction
       if (this.client.initializeConsensusSmartContract) {
         await this.client.initializeConsensusSmartContract();
       }
@@ -274,30 +236,10 @@ class RiddleMaster {
         interval: 5000,
       });
 
-      console.log(`[RiddleMaster] Transaction receipt:`, receipt);
-
-      // Check for success statuses: ACCEPTED (5) or FINALIZED (7)
-      const isSuccessful = 
-        receipt.status === 5 || 
-        receipt.status === 7 || 
-        receipt.statusName === ("ACCEPTED" as any) || 
-        receipt.statusName === ("FINALIZED" as any);
-
-      if (!isSuccessful) {
-        throw new Error(`Transaction not accepted by consensus. Status: ${receipt.statusName} (${receipt.status}). Hash: ${txHash}`);
-      }
-
       return receipt as TransactionReceipt;
     } catch (error: any) {
       console.error("Error submitting answer:", error);
-      let errorMessage = error?.message || "Failed to submit answer";
-      
-      const details = error?.data?.message || error?.details || error?.reason;
-      if (details && typeof details === 'string') {
-        errorMessage += `: ${details}`;
-      }
-      
-      throw new Error(errorMessage);
+      throw error;
     }
   }
 
