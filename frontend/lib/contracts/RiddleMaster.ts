@@ -109,12 +109,12 @@ class RiddleMaster {
   /**
    * Generate a new riddle (on-chain AI generation)
    */
-  async generateRiddle(): Promise<TransactionReceipt> {
+  async generateRiddle(theme: string = ""): Promise<TransactionReceipt> {
     try {
       const txHash = await this.client.writeContract({
         address: this.contractAddress,
         functionName: "generate_riddle",
-        args: [],
+        args: ["new", theme],
         value: BigInt(0),
       });
 

@@ -12,17 +12,21 @@ class RiddleMaster(gl.Contract):
     def __init__(self):
         pass
 
+    def _set_riddle(self, player: Address, riddle: str, answer: str) -> None:
+        self.player_riddles[player] = riddle
+        self.player_answers[player] = str(answer).lower().strip()
+
     @gl.public.write
-    def generate_riddle(self, context: str = "new") -> None:
+    def generate_riddle(self, context: str = "new", theme: str = "") -> None:
         """
         Generates a new riddle for the caller using GenLayer's on-chain LLM.
-        Context can be 'initial' or 'next'.
         """
         sender = gl.message.sender_address
 
         def leader_fn() -> dict:
+            theme_part = f" with a theme of '{theme}'" if theme else ""
             prompt = (
-                f"You are a riddle master. Generate a clever, challenging {context} riddle. "
+                f"You are a riddle master. Generate a clever, challenging {context} riddle{theme_part}. "
                 "Return a JSON object with 'riddle' and 'answer' keys. "
                 "The answer should be a single word or very short phrase."
             )
@@ -33,59 +37,61 @@ class RiddleMaster(gl.Contract):
             if not isinstance(leader_result, glvm.Return):
                 return False
             data = leader_result.calldata
-            if not isinstance(data, dict) or "riddle" not in data or "answer" not in data:
-                return False
-            return True
+            return isinstance(data, dict) and "riddle" in data and "answer" in data
 
-        # Run the non-deterministic call
         result = glvm.run_nondet_unsafe(leader_fn, validator_fn)
-        
-        self.player_riddles[sender] = result["riddle"]
-        self.player_answers[sender] = str(result["answer"]).lower().strip()
+        self._set_riddle(sender, result["riddle"], result["answer"])
 
     @gl.public.write
     def submit_answer(self, user_answer: str) -> bool:
         """
-        Verifies the user's answer semantically using GenLayer's LLM.
-        If correct, increments score and generates a new riddle.
+        Verifies the user's answer and generates the next riddle in ONE atomic AI call.
+        This ensures the score increases and the next step is ready simultaneously.
         """
         sender = gl.message.sender_address
         
         if sender not in self.player_riddles:
-            raise Exception("No active riddle found for this player. Generate one first.")
+            raise Exception("No active riddle found. Generate one first.")
 
         riddle = self.player_riddles[sender]
         expected_answer = self.player_answers[sender]
 
-        def leader_fn() -> str:
+        def leader_fn() -> dict:
             prompt = (
                 f"Riddle: {riddle}\n"
                 f"Correct Answer: {expected_answer}\n"
                 f"User's Answer: {user_answer}\n\n"
-                "Is the user's answer semantically correct? "
-                "Respond ONLY with 'CORRECT' or 'INCORRECT'."
+                "Task 1: Is the user's answer semantically correct? (CORRECT/INCORRECT)\n"
+                "Task 2: If CORRECT, generate a new clever riddle and its answer.\n\n"
+                "Return a JSON object with:\n"
+                "- 'evaluation': 'CORRECT' or 'INCORRECT'\n"
+                "- 'next_riddle': (string, only if CORRECT)\n"
+                "- 'next_answer': (string, only if CORRECT)"
             )
-            result = gl.nondet.exec_prompt(prompt)
-            return str(result).strip().upper()
+            result = gl.nondet.exec_prompt(prompt, response_format="json")
+            return result
 
         def validator_fn(leader_result) -> bool:
             if not isinstance(leader_result, glvm.Return):
                 return False
-            val = str(leader_result.calldata).strip().upper()
-            return val in ["CORRECT", "INCORRECT"]
+            data = leader_result.calldata
+            if not isinstance(data, dict) or "evaluation" not in data:
+                return False
+            if data["evaluation"] == "CORRECT":
+                return "next_riddle" in data and "next_answer" in data
+            return True
 
-        evaluation = glvm.run_nondet_unsafe(leader_fn, validator_fn)
+        result = glvm.run_nondet_unsafe(leader_fn, validator_fn)
 
-        if evaluation == "CORRECT":
-            # Correct answer logic
+        if result["evaluation"] == "CORRECT":
+            # 1. Update score
             current_score = int(self.scores.get(sender, u256(0)))
             self.scores[sender] = u256(current_score + 1)
             
-            # Generate next riddle automatically for better UX
-            self.generate_riddle(context="next")
+            # 2. Set next riddle immediately
+            self._set_riddle(sender, result["next_riddle"], result["next_answer"])
             return True
         
-        # Incorrect answer
         return False
 
     @gl.public.view

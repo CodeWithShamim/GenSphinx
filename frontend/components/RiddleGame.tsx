@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useQueryClient } from '@tanstack/react-query';
 import {
   useCurrentRiddle,
   useSubmitAnswer,
@@ -34,15 +35,23 @@ export function RiddleGame() {
 
   const { submitAnswer, isSubmitting } = useSubmitAnswer();
   const { generateRiddle, isGenerating } = useGenerateRiddle();
+  const queryClient = useQueryClient();
 
   const [answer, setAnswer] = useState('');
+  const [theme, setTheme] = useState('');
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(
     null,
   );
 
+  const handleRefresh = () => {
+    queryClient.invalidateQueries({ queryKey: ["currentRiddle"] });
+    queryClient.invalidateQueries({ queryKey: ["playerScore"] });
+    queryClient.invalidateQueries({ queryKey: ["leaderboard"] });
+  };
+
   useEffect(() => {
     if (feedback) {
-      const timer = setTimeout(() => setFeedback(null), 3000);
+      const timer = setTimeout(() => setFeedback(null), 8000);
       return () => clearTimeout(timer);
     }
   }, [feedback]);
@@ -53,23 +62,31 @@ export function RiddleGame() {
 
     submitAnswer(answer, {
       onSuccess: () => {
-        // In a real app, we'd check if the answer was actually correct from the receipt or event
-        // For now, if the tx is accepted, we assume a correct answer path was taken or just show generic success
         setAnswer('');
-        setFeedback({ type: 'success', message: 'Correct! The Sphinx is impressed.' });
+        setFeedback({ 
+          type: 'success', 
+          message: 'The oracle is evaluating your answer. Your score will update shortly if correct!' 
+        });
+        
+        // Auto-refresh after a short delay to catch the update
+        setTimeout(handleRefresh, 5000);
       },
-      onError: () => {
-        setFeedback({ type: 'error', message: 'The Sphinx shakes its head. Try again.' });
+      onError: (err: any) => {
+        setFeedback({ 
+          type: 'error', 
+          message: err?.message || 'The Sphinx encountered an error. Try again.' 
+        });
       },
     });
   };
 
   const handleGenerate = () => {
-    generateRiddle();
+    generateRiddle(theme);
     setFeedback(null);
   };
 
   if (!isConnected) {
+// ... (rest of the component)
     return (
       <motion.div
         initial={{ opacity: 0, y: 20 }}
@@ -152,18 +169,30 @@ export function RiddleGame() {
             </div>
           </div>
 
-          <motion.div
-            whileHover={{ scale: 1.05 }}
-            className="flex items-center gap-3 bg-secondary/50 backdrop-blur-sm px-5 py-2.5 rounded-2xl border border-white/5 shadow-inner"
-          >
-            <Trophy className="w-5 h-5 text-accent" />
-            <div className="flex flex-col">
-              <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-bold">
-                Total Score
-              </span>
-              <span className="font-bold text-accent text-lg leading-tight">{score ?? 0}</span>
-            </div>
-          </motion.div>
+          <div className="flex items-center gap-4">
+            <motion.div
+              whileHover={{ scale: 1.05 }}
+              className="flex items-center gap-3 bg-secondary/50 backdrop-blur-sm px-5 py-2.5 rounded-2xl border border-white/5 shadow-inner"
+            >
+              <Trophy className="w-5 h-5 text-accent" />
+              <div className="flex flex-col">
+                <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-bold">
+                  Total Score
+                </span>
+                <span className="font-bold text-accent text-lg leading-tight">{score ?? 0}</span>
+              </div>
+            </motion.div>
+            
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={handleRefresh}
+              className="rounded-xl border-white/5 bg-white/5 hover:bg-white/10 h-11 w-11"
+              title="Refresh State"
+            >
+              <Sparkles className="w-4 h-4 text-accent" />
+            </Button>
+          </div>
         </div>
 
         <AnimatePresence mode="wait">
@@ -184,6 +213,7 @@ export function RiddleGame() {
               </p>
             </motion.div>
           ) : isErrorRiddle ||
+            !riddle ||
             riddle === 'No riddle generated yet.' ||
             riddle === 'Please connect your wallet.' ? (
             <motion.div
@@ -200,28 +230,38 @@ export function RiddleGame() {
                 <div className="space-y-2">
                   <h3 className="text-2xl font-bold">The Sphinx is Silent</h3>
                   <p className="text-muted-foreground max-w-xs mx-auto">
-                    Click below to summon a new riddle from the GenLayer AI.
+                    Enter a theme (optional) and summon a new riddle.
                   </p>
                 </div>
               </div>
-              <Button
-                onClick={handleGenerate}
-                disabled={isGenerating}
-                size="lg"
-                className="btn-primary h-14 px-10 text-lg rounded-2xl group"
-              >
-                {isGenerating ? (
-                  <>
-                    <Loader2 className="mr-3 h-5 w-5 animate-spin" />
-                    Summoning...
-                  </>
-                ) : (
-                  <>
-                    <Sparkles className="mr-3 h-5 w-5 group-hover:rotate-12 transition-transform" />
-                    Generate New Riddle
-                  </>
-                )}
-              </Button>
+
+              <div className="max-w-xs mx-auto space-y-4">
+                <Input
+                  placeholder="Theme (e.g. Science, Magic...)"
+                  value={theme}
+                  onChange={(e) => setTheme(e.target.value)}
+                  className="bg-white/5 border-white/10 h-12 rounded-xl text-center"
+                  disabled={isGenerating}
+                />
+                <Button
+                  onClick={handleGenerate}
+                  disabled={isGenerating}
+                  size="lg"
+                  className="btn-primary w-full h-14 text-lg rounded-2xl group"
+                >
+                  {isGenerating ? (
+                    <>
+                      <Loader2 className="mr-3 h-5 w-5 animate-spin" />
+                      Summoning...
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="mr-3 h-5 w-5 group-hover:rotate-12 transition-transform" />
+                      Generate Riddle
+                    </>
+                  )}
+                </Button>
+              </div>
             </motion.div>
           ) : (
             <motion.div
@@ -301,20 +341,29 @@ export function RiddleGame() {
                 </AnimatePresence>
               </div>
 
-              <div className="flex justify-center pt-4">
-                <Button
-                  variant="ghost"
-                  onClick={handleGenerate}
-                  disabled={isGenerating || isSubmitting}
-                  className="text-white/40 hover:text-accent hover:bg-accent/5 rounded-xl transition-all"
-                >
-                  {isGenerating ? (
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  ) : (
-                    <Sparkles className="mr-2 h-4 w-4" />
-                  )}
-                  Try a different challenge
-                </Button>
+              <div className="flex flex-col items-center gap-4 pt-4 border-t border-white/5">
+                <div className="flex items-center gap-3 w-full max-w-xs">
+                   <Input
+                    placeholder="New theme?"
+                    value={theme}
+                    onChange={(e) => setTheme(e.target.value)}
+                    className="bg-white/5 border-white/10 h-10 rounded-xl text-sm"
+                    disabled={isGenerating || isSubmitting}
+                  />
+                  <Button
+                    variant="ghost"
+                    onClick={handleGenerate}
+                    disabled={isGenerating || isSubmitting}
+                    className="text-white/40 hover:text-accent hover:bg-accent/5 rounded-xl transition-all whitespace-nowrap"
+                  >
+                    {isGenerating ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : (
+                      <Sparkles className="mr-2 h-4 w-4" />
+                    )}
+                    Skip / New Riddle
+                  </Button>
+                </div>
               </div>
             </motion.div>
           )}

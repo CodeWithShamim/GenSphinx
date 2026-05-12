@@ -91,7 +91,7 @@ export function useGenerateRiddle() {
   const [isGenerating, setIsGenerating] = useState(false);
 
   const mutation = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (theme: string = "") => {
       if (!contract || !address) {
         throw new Error("Contract not configured or wallet not connected.");
       }
@@ -99,7 +99,7 @@ export function useGenerateRiddle() {
 
       try {
         // Now entirely on-chain!
-        return await contract.generateRiddle();
+        return await contract.generateRiddle(theme);
       } catch (err: any) {
         setIsGenerating(false);
         throw err;

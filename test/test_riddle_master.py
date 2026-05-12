@@ -25,11 +25,14 @@ def test_riddle_master_flow(direct_vm, direct_deploy):
     # Check if has active riddle
     assert contract.has_active_riddle(sender_address) is True
     
-    # Mock LLM for answer evaluation - CORRECT
-    direct_vm.mock_llm(r".*User's Answer: A piano.*", "CORRECT")
-    # Mock LLM for the NEXT riddle generation (since submit_answer calls generate_riddle with context="next")
+    # Mock LLM for answer evaluation - CORRECT and generate next riddle
     next_riddle_data = {"riddle": "What has a heart that doesn't beat?", "answer": "An artichoke"}
-    direct_vm.mock_llm(r".*Generate a clever, challenging next riddle.*", json.dumps(next_riddle_data))
+    evaluation_result = {
+        "evaluation": "CORRECT",
+        "next_riddle": next_riddle_data["riddle"],
+        "next_answer": next_riddle_data["answer"]
+    }
+    direct_vm.mock_llm(r".*User's Answer: A piano.*", json.dumps(evaluation_result))
     
     # Submit correct answer
     is_correct = contract.submit_answer("A piano")
@@ -44,7 +47,8 @@ def test_riddle_master_flow(direct_vm, direct_deploy):
     assert new_riddle == next_riddle_data["riddle"]
     
     # Mock LLM for answer evaluation - INCORRECT
-    direct_vm.mock_llm(r".*User's Answer: A car.*", "INCORRECT")
+    incorrect_result = {"evaluation": "INCORRECT"}
+    direct_vm.mock_llm(r".*User's Answer: A car.*", json.dumps(incorrect_result))
     
     # Submit incorrect answer
     is_correct = contract.submit_answer("A car")
@@ -67,3 +71,18 @@ def test_riddle_master_flow(direct_vm, direct_deploy):
             found = True
             break
     assert found, f"Sender {sender_hex} not found in leaderboard {leaderboard}"
+
+def test_riddle_master_theme(direct_vm, direct_deploy):
+    # Mock the LLM to return a themed riddle
+    riddle_data = {"riddle": "I have rings but no fingers. What am I?", "answer": "Saturn"}
+    direct_vm.mock_llm(r".*Generate a clever, challenging new riddle with a theme of 'space'.*", json.dumps(riddle_data))
+    
+    contract = direct_deploy(CONTRACT_PATH)
+    sender_address = direct_vm.sender
+    
+    # Generate riddle with theme
+    contract.generate_riddle(context="new", theme="space")
+    
+    # Check current riddle
+    riddle = contract.get_current_riddle(sender_address)
+    assert riddle == riddle_data["riddle"]
