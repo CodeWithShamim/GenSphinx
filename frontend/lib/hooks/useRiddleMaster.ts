@@ -98,42 +98,10 @@ export function useGenerateRiddle() {
       setIsGenerating(true);
 
       try {
-        // Pre-flight check: gas and balance
-        // We wrap this in a secondary try-catch to make it non-blocking
-        let balance = BigInt(-1); // -1 means unknown
-        let gasEstimate = BigInt(1000000);
-        let gasPrice = BigInt(1000000000);
-        try {
-          const [fetchedBalance, fetchedGasEstimate, fetchedGasPrice] = await Promise.all([
-            contract.getAccountBalance(address),
-            contract.estimateGenerateRiddleGas(),
-            contract.getGasPrice(),
-          ]);
-          balance = fetchedBalance;
-          gasEstimate = fetchedGasEstimate;
-          gasPrice = fetchedGasPrice;
-        } catch (checkErr) {
-          console.warn("[useGenerateRiddle] Pre-flight check failed, proceeding anyway:", checkErr);
-        }
-        // If we successfully fetched balance and it is 0, we definitely can't afford any transaction
-        if (balance === BigInt(0)) {
-          throw new Error("Insufficient funds. Your balance is 0 GEN on Bradbury. Please get some GEN from the faucet: https://faucet.genlayer.com");
-        }
-        const totalCost = gasEstimate * gasPrice;
-        if (balance !== BigInt(-1)) {
-          console.log(`[useGenerateRiddle] Balance: ${balance}, Estimate: ${gasEstimate}, GasPrice: ${gasPrice}, Total: ${totalCost}`);
-          // If balance is less than cost, or if we have exactly 0 and totalCost is 0
-          if (balance < totalCost) {
-            const balanceGen = Number(balance) / 1e18;
-            const costGen = Number(totalCost) / 1e18;
-            throw new Error(`Insufficient funds for gas on Bradbury. Balance: ${balanceGen.toFixed(4)} GEN, Estimated Cost: ${costGen.toFixed(4)} GEN. Faucet: https://faucet.genlayer.com`);
-          }
-        }
-        // Only call the wallet-triggering function if we pass the checks
+        // Now entirely on-chain!
         return await contract.generateRiddle();
       } catch (err: any) {
         setIsGenerating(false);
-        // Re-throw to be caught by onError
         throw err;
       }
     },

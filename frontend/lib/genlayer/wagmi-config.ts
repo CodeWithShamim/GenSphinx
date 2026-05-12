@@ -1,32 +1,9 @@
-import { testnetAsimov } from 'genlayer-js/chains'
+import { testnetBradbury } from 'genlayer-js/chains'
 
 /**
  * GenLayer Testnet Bradbury
- * 
- * We use testnetAsimov as the base because it contains the necessary 
- * consensus contract addresses and ABIs required by genlayer-js.
  */
-export const bradbury = {
-  ...testnetAsimov,
-  id: 4221,
-  name: 'GenLayer Bradbury',
-  nativeCurrency: {
-    name: 'GenLayer',
-    symbol: 'GEN',
-    decimals: 18,
-  },
-  rpcUrls: {
-    default: {
-      http: ['https://rpc-bradbury.genlayer.com'],
-    },
-  },
-  blockExplorers: {
-    default: {
-      name: 'GenLayer Bradbury Scan',
-      url: 'https://explorer-bradbury.genlayer.com',
-    },
-  },
-} as const
+export const bradbury = testnetBradbury;
 
 // Get projectId from https://cloud.reown.com
 export const projectId = process.env.NEXT_PUBLIC_REOWN_PROJECT_ID || '8e434f07a098046f4857b288c3866172'

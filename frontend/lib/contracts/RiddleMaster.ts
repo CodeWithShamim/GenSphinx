@@ -4,7 +4,7 @@ import type { LeaderboardEntry, TransactionReceipt } from "./types";
 import { createPublicClient, http } from "viem";
 
 /**
- * RiddleMaster contract class for interacting with the GenLayer Riddle Master contract
+ * Clean, robust RiddleMaster contract wrapper
  */
 class RiddleMaster {
   private contractAddress: `0x${string}`;
@@ -21,8 +21,6 @@ class RiddleMaster {
     this.contractAddress = contractAddress as `0x${string}`;
     const endpoint = rpcUrl || "https://rpc-bradbury.genlayer.com";
 
-    // Configuration for genlayer-js client
-    // Note: genlayer-js uses 'provider' for wallet integration (MetaMask)
     const config: any = {
       chain: bradbury,
       endpoint: endpoint,
@@ -38,50 +36,21 @@ class RiddleMaster {
 
     this.client = createClient(config);
 
-    // Dedicated public client for GenLayer-specific calls (gen_call)
-    const publicConfig: any = {
+    this.publicClient = createClient({
       chain: bradbury,
       endpoint: endpoint,
-    };
-    this.publicClient = createClient(publicConfig);
+    });
 
-    // Standard Viem public client for reliable balance and gas price
     this.viemPublicClient = createPublicClient({
       chain: bradbury as any,
       transport: http(endpoint),
     });
-
-    if (typeof window !== "undefined") {
-      console.log(`[RiddleMaster] Initialized. Account: ${address || 'None'}, RPC: ${endpoint}, HasProvider: ${!!provider}`);
-    }
   }
 
   /**
-   * Update the address used for transactions
+   * Fetch current riddle
    */
-  updateAccount(address: string, provider?: any): void {
-    console.log(`[RiddleMaster] Updating account to: ${address}`);
-    
-    const currentEndpoint = (this.viemPublicClient as any).chain?.rpcUrls?.default?.http[0] || "https://rpc-bradbury.genlayer.com";
-    
-    const config: any = {
-      chain: bradbury,
-      account: address as `0x${string}`,
-      endpoint: currentEndpoint,
-    };
-
-    if (provider) {
-      config.provider = provider;
-    }
-    
-    this.client = createClient(config);
-  }
-
-  /**
-   * Get the current riddle for a player
-   */
-  async getCurrentRiddle(address: string | null): Promise<string> {
-    if (!address) return "Please connect your wallet.";
+  async getCurrentRiddle(address: string): Promise<string> {
     try {
       const riddle = await this.publicClient.readContract({
         address: this.contractAddress,
@@ -90,16 +59,15 @@ class RiddleMaster {
       });
       return String(riddle);
     } catch (error) {
-      console.error("Error fetching riddle:", error);
-      return "No riddle generated yet.";
+      console.error("[RiddleMaster] Error fetching riddle:", error);
+      return "";
     }
   }
 
   /**
-   * Get points for a specific player
+   * Fetch player score
    */
-  async getPlayerScore(address: string | null): Promise<number> {
-    if (!address) return 0;
+  async getPlayerScore(address: string): Promise<number> {
     try {
       const score = await this.publicClient.readContract({
         address: this.contractAddress,
@@ -108,13 +76,13 @@ class RiddleMaster {
       });
       return Number(score) || 0;
     } catch (error) {
-      console.error("Error fetching player score:", error);
+      console.error("[RiddleMaster] Error fetching score:", error);
       return 0;
     }
   }
 
   /**
-   * Get the leaderboard
+   * Fetch leaderboard
    */
   async getLeaderboard(): Promise<LeaderboardEntry[]> {
     try {
@@ -124,140 +92,80 @@ class RiddleMaster {
         args: [],
       });
 
-      let data: Record<string, number> = {};
-      try {
-        data = typeof leaderboardJson === 'string' ? JSON.parse(leaderboardJson) : leaderboardJson;
-      } catch (e) {
-        console.error("Error parsing leaderboard JSON:", e);
-        return [];
-      }
+      const data = typeof leaderboardJson === 'string' ? JSON.parse(leaderboardJson) : leaderboardJson;
 
-      return Object.entries(data)
+      return Object.entries(data as Record<string, number>)
         .map(([address, points]) => ({
           address,
           points: Number(points),
         }))
         .sort((a, b) => b.points - a.points);
     } catch (error) {
-      console.error("Error fetching leaderboard:", error);
+      console.error("[RiddleMaster] Error fetching leaderboard:", error);
       return [];
     }
   }
 
   /**
-   * Get the current balance of an account in Wei
-   */
-  async getAccountBalance(address: string): Promise<bigint> {
-    try {
-      const balance = await this.viemPublicClient.getBalance({
-        address: address as `0x${string}`,
-      });
-      return balance;
-    } catch (err: any) {
-      console.error("[RiddleMaster] Error fetching balance:", err);
-      return BigInt(0);
-    }
-  }
-
-  /**
-   * Get the current gas price
-   */
-  async getGasPrice(): Promise<bigint> {
-    try {
-      return await this.viemPublicClient.getGasPrice();
-    } catch (_) {
-      return BigInt(1000000000);
-    }
-  }
-
-  /**
-   * Estimate gas for generating a riddle
-   */
-  async estimateGenerateRiddleGas(): Promise<bigint> {
-    return BigInt(1000000); 
-  }
-
-  /**
-   * Generate a new riddle
+   * Generate a new riddle (on-chain AI generation)
    */
   async generateRiddle(): Promise<TransactionReceipt> {
     try {
-      console.log(`[RiddleMaster] Generating riddle...`);
-      
-      if (this.client.initializeConsensusSmartContract) {
-        await this.client.initializeConsensusSmartContract();
-      }
-
       const txHash = await this.client.writeContract({
         address: this.contractAddress,
         functionName: "generate_riddle",
         args: [],
         value: BigInt(0),
       });
-      console.log(`[RiddleMaster] Transaction sent: ${txHash}`);
 
-      const receipt = await this.client.waitForTransactionReceipt({
+      return await this.client.waitForTransactionReceipt({
         hash: txHash,
         status: "ACCEPTED" as any,
-        retries: 24,
-        interval: 5000,
-      });
-
-      return receipt as TransactionReceipt;
-    } catch (error: any) {
-      console.error("Error generating riddle:", error);
+        retries: 50,
+        interval: 3000,
+      }) as TransactionReceipt;
+    } catch (error) {
+      console.error("[RiddleMaster] Error generating riddle:", error);
       throw error;
     }
   }
 
   /**
-   * Submit an answer
+   * Submit answer
    */
   async submitAnswer(userAnswer: string): Promise<TransactionReceipt> {
     try {
-      console.log(`[RiddleMaster] Submitting answer: ${userAnswer}`);
-
-      if (this.client.initializeConsensusSmartContract) {
-        await this.client.initializeConsensusSmartContract();
-      }
-
       const txHash = await this.client.writeContract({
         address: this.contractAddress,
         functionName: "submit_answer",
         args: [userAnswer],
         value: BigInt(0),
       });
-      console.log(`[RiddleMaster] Transaction sent: ${txHash}`);
 
-      const receipt = await this.client.waitForTransactionReceipt({
+      return await this.client.waitForTransactionReceipt({
         hash: txHash,
         status: "ACCEPTED" as any,
-        retries: 24,
-        interval: 5000,
-      });
-
-      return receipt as TransactionReceipt;
-    } catch (error: any) {
-      console.error("Error submitting answer:", error);
+        retries: 50,
+        interval: 3000,
+      }) as TransactionReceipt;
+    } catch (error) {
+      console.error("[RiddleMaster] Error submitting answer:", error);
       throw error;
     }
   }
 
   /**
-   * Check if a player has an active riddle
+   * Get balance for pre-flight checks
    */
-  async hasActiveRiddle(address: string): Promise<boolean> {
-    try {
-      const result = await this.publicClient.readContract({
-        address: this.contractAddress,
-        functionName: "has_active_riddle",
-        args: [address],
-      });
-      return Boolean(result);
-    } catch (error) {
-      console.error("Error checking active riddle:", error);
-      return false;
-    }
+  async getAccountBalance(address: string): Promise<bigint> {
+    return await this.viemPublicClient.getBalance({ address: address as `0x${string}` });
+  }
+
+  /**
+   * Get gas price for pre-flight checks
+   */
+  async getGasPrice(): Promise<bigint> {
+    return await this.viemPublicClient.getGasPrice();
   }
 }
 

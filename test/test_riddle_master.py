@@ -7,52 +7,63 @@ CONTRACT_PATH = "contracts/riddle_master.py"
 def test_riddle_master_flow(direct_vm, direct_deploy):
     # Mock the LLM to return a riddle and answer
     riddle_data = {"riddle": "I have keys, but no locks. What am I?", "answer": "A piano"}
-    direct_vm.mock_llm(r".*Generate a fun, clever, and challenging riddle.*", json.dumps(riddle_data))
+    direct_vm.mock_llm(r".*Generate a clever, challenging initial riddle.*", json.dumps(riddle_data))
     
     # Deploy contract
     contract = direct_deploy(CONTRACT_PATH)
     
+    # Get the default sender address from the VM
+    sender_address = direct_vm.sender
+    
     # Generate riddle
-    contract.generate_riddle()
+    contract.generate_riddle(context="initial")
     
     # Check current riddle
-    from gltest import default_account
-    riddle = contract.get_current_riddle(default_account.address)
+    riddle = contract.get_current_riddle(sender_address)
     assert riddle == riddle_data["riddle"]
     
     # Check if has active riddle
-    assert contract.has_active_riddle(default_account.address) is True
+    assert contract.has_active_riddle(sender_address) is True
     
     # Mock LLM for answer evaluation - CORRECT
-    direct_vm.mock_llm(r".*Is the user's answer semantically correct.*", "CORRECT")
-    # Mock LLM for the NEXT riddle generation (since submit_answer calls _generate_new_riddle on success)
+    direct_vm.mock_llm(r".*User's Answer: A piano.*", "CORRECT")
+    # Mock LLM for the NEXT riddle generation (since submit_answer calls generate_riddle with context="next")
     next_riddle_data = {"riddle": "What has a heart that doesn't beat?", "answer": "An artichoke"}
-    direct_vm.mock_llm(r".*Generate a fun, clever, and challenging riddle.*", json.dumps(next_riddle_data))
+    direct_vm.mock_llm(r".*Generate a clever, challenging next riddle.*", json.dumps(next_riddle_data))
     
     # Submit correct answer
     is_correct = contract.submit_answer("A piano")
     assert is_correct is True
     
     # Check score
-    score = contract.get_score(default_account.address)
+    score = contract.get_score(sender_address)
     assert score == 1
     
     # Check new riddle
-    new_riddle = contract.get_current_riddle(default_account.address)
+    new_riddle = contract.get_current_riddle(sender_address)
     assert new_riddle == next_riddle_data["riddle"]
     
     # Mock LLM for answer evaluation - INCORRECT
-    direct_vm.mock_llm(r".*Is the user's answer semantically correct.*", "INCORRECT")
+    direct_vm.mock_llm(r".*User's Answer: A car.*", "INCORRECT")
     
     # Submit incorrect answer
     is_correct = contract.submit_answer("A car")
     assert is_correct is False
     
     # Score should remain same
-    score = contract.get_score(default_account.address)
+    score = contract.get_score(sender_address)
     assert score == 1
     
     # Leaderboard check
-    leaderboard = contract.get_leaderboard()
-    assert default_account.address.lower() in [addr.lower() for addr in leaderboard.keys()]
-    assert leaderboard[default_account.address] == 1
+    leaderboard_json = contract.get_leaderboard()
+    leaderboard = json.loads(leaderboard_json)
+    sender_hex = "0x" + sender_address.hex()
+    
+    # Check if sender is in leaderboard and has score 1
+    found = False
+    for addr, points in leaderboard.items():
+        if addr.lower() == sender_hex.lower():
+            assert points == 1
+            found = True
+            break
+    assert found, f"Sender {sender_hex} not found in leaderboard {leaderboard}"
