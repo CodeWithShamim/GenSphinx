@@ -25,6 +25,7 @@ import {
 } from 'lucide-react';
 import { AddressDisplay } from './AddressDisplay';
 import { cn } from '@/lib/utils';
+import { FunnyLoader } from './FunnyLoader';
 
 export function RiddleGame() {
   const { address, isConnected, connectWallet, switchWalletAccount, isOnCorrectNetwork } =
@@ -44,9 +45,9 @@ export function RiddleGame() {
   );
 
   const handleRefresh = () => {
-    queryClient.invalidateQueries({ queryKey: ["currentRiddle"] });
-    queryClient.invalidateQueries({ queryKey: ["playerScore"] });
-    queryClient.invalidateQueries({ queryKey: ["leaderboard"] });
+    queryClient.invalidateQueries({ queryKey: ['currentRiddle'] });
+    queryClient.invalidateQueries({ queryKey: ['playerScore'] });
+    queryClient.invalidateQueries({ queryKey: ['leaderboard'] });
   };
 
   useEffect(() => {
@@ -63,18 +64,19 @@ export function RiddleGame() {
     submitAnswer(answer, {
       onSuccess: () => {
         setAnswer('');
-        setFeedback({ 
-          type: 'success', 
-          message: 'The oracle is evaluating your answer. Your score will update shortly if correct!' 
+        setFeedback({
+          type: 'success',
+          message:
+            'The oracle is evaluating your answer. Your score will update shortly if correct!',
         });
-        
+
         // Auto-refresh after a short delay to catch the update
         setTimeout(handleRefresh, 5000);
       },
       onError: (err: any) => {
-        setFeedback({ 
-          type: 'error', 
-          message: err?.message || 'The Sphinx encountered an error. Try again.' 
+        setFeedback({
+          type: 'error',
+          message: err?.message || 'The Sphinx encountered an error. Try again.',
         });
       },
     });
@@ -86,7 +88,7 @@ export function RiddleGame() {
   };
 
   if (!isConnected) {
-// ... (rest of the component)
+    // ... (rest of the component)
     return (
       <motion.div
         initial={{ opacity: 0, y: 20 }}
@@ -182,7 +184,7 @@ export function RiddleGame() {
                 <span className="font-bold text-accent text-lg leading-tight">{score ?? 0}</span>
               </div>
             </motion.div>
-            
+
             <Button
               variant="outline"
               size="icon"
@@ -343,7 +345,7 @@ export function RiddleGame() {
 
               <div className="flex flex-col items-center gap-4 pt-4 border-t border-white/5">
                 <div className="flex items-center gap-3 w-full max-w-xs">
-                   <Input
+                  <Input
                     placeholder="New theme?"
                     value={theme}
                     onChange={(e) => setTheme(e.target.value)}
@@ -354,7 +356,7 @@ export function RiddleGame() {
                     variant="ghost"
                     onClick={handleGenerate}
                     disabled={isGenerating || isSubmitting}
-                    className="text-white/40 hover:text-accent hover:bg-accent/5 rounded-xl transition-all whitespace-nowrap"
+                    className="text-white/40 hover:text-accent bg-accent/5 rounded-xl transition-all whitespace-nowrap"
                   >
                     {isGenerating ? (
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -397,14 +399,14 @@ export function RiddleGame() {
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            <AnimatePresence mode="popLayout">
+            <AnimatePresence>
               {leaderboard.map((entry, index) => (
                 <motion.div
                   key={entry.address}
-                  layout
-                  initial={{ opacity: 0, scale: 0.9 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  transition={{ delay: index * 0.05 }}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.95 }}
+                  transition={{ delay: Math.min(index * 0.05, 0.5) }}
                   whileHover={{ y: -5, borderColor: 'rgba(155,106,246,0.5)' }}
                   className={cn(
                     'group relative flex items-center justify-between p-6 rounded-3xl border transition-all duration-300',
@@ -468,6 +470,10 @@ export function RiddleGame() {
           </div>
         )}
       </motion.div>
+
+      {/* Funny Loading Overlays */}
+      <FunnyLoader isOpen={isGenerating} message="The Sphinx is cooking a new riddle..." />
+      <FunnyLoader isOpen={isSubmitting} message="The Oracle is judging your wisdom..." />
     </div>
   );
 }
